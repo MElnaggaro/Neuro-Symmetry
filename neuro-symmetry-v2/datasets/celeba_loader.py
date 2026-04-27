@@ -1,15 +1,16 @@
 """
-CelebA dataset loader — 202,599 aligned & cropped face images.
+CelebA dataset loader — 202,599 face images in three variants.
 
-Used as the "normal" class (label 0) for pretraining the symmetry classifier.
-Also exposes 5-point landmarks and 40 binary attribute annotations.
+Image sets (select via image_set parameter):
+  "aligned"     JPG  178x218  eye-aligned & cropped  (default, best for training)
+  "aligned_png" PNG  178x218  same alignment, lossless (best for texture analysis)
+  "wild"        JPG  varies   original in-the-wild images (use when pose variety needed)
 
 Split logic follows the official eval partition file:
   0 = train  |  1 = val  |  2 = test
 
-Torch is an optional dependency at import time; it is only required when
-CelebADataset.__getitem__ is called (i.e. during actual training in Phase 4).
-The __main__ block works with stdlib + numpy only.
+Torch is optional at import time — only required when CelebADataset.__getitem__
+is called (Phase 4 training). The __main__ block runs on stdlib + numpy only.
 """
 
 from __future__ import annotations
@@ -21,7 +22,15 @@ from typing import Callable, Literal
 import numpy as np
 from PIL import Image
 
-from datasets.config import CELEBA_ANNO, CELEBA_EVAL, CELEBA_IMGS
+from datasets.config import (
+    CELEBA_ANNO,
+    CELEBA_EVAL,
+    CELEBA_IMGS_ALIGNED,
+    CELEBA_IMGS_ALIGNED_PNG,
+    CELEBA_IMGS_WILD,
+    CELEBA_LM_ALIGNED,
+    CELEBA_LM_WILD,
+)
 
 # ── Optional torch import ─────────────────────────────────────────────────────
 
@@ -35,15 +44,24 @@ except ImportError:
 
 # ── Types ─────────────────────────────────────────────────────────────────────
 
-Split = Literal["train", "val", "test", "all"]
+Split     = Literal["train", "val", "test", "all"]
+ImageSet  = Literal["aligned", "aligned_png", "wild"]
+
 _SPLIT_ID: dict[str, int | None] = {"train": 0, "val": 1, "test": 2, "all": None}
+
+# Maps image_set name → (image directory, landmark annotation file)
+_IMAGE_SET_MAP: dict[str, tuple[Path, Path]] = {
+    "aligned":     (CELEBA_IMGS_ALIGNED,     CELEBA_LM_ALIGNED),
+    "aligned_png": (CELEBA_IMGS_ALIGNED_PNG, CELEBA_LM_ALIGNED),
+    "wild":        (CELEBA_IMGS_WILD,        CELEBA_LM_WILD),
+}
 
 LANDMARK_COLS = [
     "lefteye_x", "lefteye_y",
     "righteye_x", "righteye_y",
     "nose_x",     "nose_y",
-    "leftmouth_x","leftmouth_y",
-    "rightmouth_x","rightmouth_y",
+    "leftmouth_x", "leftmouth_y",
+    "rightmouth_x", "rightmouth_y",
 ]
 
 # ── Standalone helpers (no torch required) ────────────────────────────────────
@@ -60,7 +78,7 @@ def _load_partition(eval_file: Path) -> dict[str, int]:
 
 
 def _load_landmarks(landmark_file: Path) -> dict[str, np.ndarray]:
-    """Return {filename: float32 array shape (5, 2)} from aligned landmarks file."""
+    """Return {filename: float32 array shape (5, 2)}."""
     result: dict[str, np.ndarray] = {}
     with landmark_file.open() as f:
         next(f)  # total count line
@@ -96,32 +114,44 @@ def count_by_split() -> dict[str, int]:
 
 class CelebADataset(_Dataset):  # type: ignore[misc]
     """
-    PyTorch Dataset wrapping CelebA aligned & cropped images.
+    PyTorch Dataset wrapping CelebA images.
 
-    Each item is a dict:
+    Parameters
+    ----------
+    split      : "train" | "val" | "test" | "all"
+    image_set  : "aligned" (default) | "aligned_png" | "wild"
+                 Selects which image folder and landmark file to use.
+    transform  : optional torchvision transform applied to each PIL image
+    load_images: set False to skip disk I/O (useful for counting / dry-runs)
+
+    Each item dict:
       image      : PIL.Image or transformed tensor
       landmarks  : float32 tensor (5, 2) — pixel coords
       attributes : int8 tensor   (40,)   — {-1, 1}
-      label      : int — always 0 (normal class)
+      label      : int  — always 0 (normal class)
+      image_set  : str  — which folder was used
       filename   : str
     """
 
     def __init__(
         self,
         split: Split = "train",
+        image_set: ImageSet = "aligned",
         transform: Callable | None = None,
         load_images: bool = True,
     ) -> None:
         if not _TORCH:
-            raise RuntimeError(
-                "torch is required to instantiate CelebADataset. "
-                "Install it with: pip install torch"
-            )
+            raise RuntimeError("pip install torch  — required to use CelebADataset")
+        if image_set not in _IMAGE_SET_MAP:
+            raise ValueError(f"image_set must be one of {list(_IMAGE_SET_MAP)}, got {image_set!r}")
+
+        self.imgs_dir, lm_file = _IMAGE_SET_MAP[image_set]
+        self.image_set   = image_set
         self.transform   = transform
         self.load_images = load_images
 
         partition   = _load_partition(CELEBA_EVAL / "list_eval_partition.txt")
-        self._lm    = _load_landmarks(CELEBA_ANNO / "list_landmarks_align_celeba.txt")
+        self._lm    = _load_landmarks(lm_file)
         self._attrs = _load_attributes(CELEBA_ANNO / "list_attr_celeba.txt")
 
         split_id = _SPLIT_ID[split]
@@ -137,9 +167,9 @@ class CelebADataset(_Dataset):  # type: ignore[misc]
         fname = self.filenames[idx]
 
         if self.load_images:
-            # Annotation files use .jpg names; on-disk images are .png
-            img_name = Path(fname).stem + ".png"
-            img: Image.Image | object = Image.open(CELEBA_IMGS / img_name).convert("RGB")
+            # aligned_png images are .png on disk but annotation keys are .jpg
+            disk_name = Path(fname).stem + ".png" if self.image_set == "aligned_png" else fname
+            img: Image.Image | object = Image.open(self.imgs_dir / disk_name).convert("RGB")
             if self.transform is not None:
                 img = self.transform(img)
         else:
@@ -153,6 +183,7 @@ class CelebADataset(_Dataset):  # type: ignore[misc]
             "landmarks":  torch.from_numpy(lm_np),
             "attributes": torch.tensor(attr_np, dtype=torch.int8),
             "label":      0,
+            "image_set":  self.image_set,
             "filename":   fname,
         }
 
@@ -162,20 +193,28 @@ if __name__ == "__main__":
 
     verify_paths()
 
+    # ── Split counts ──────────────────────────────────────────────────────────
     counts = count_by_split()
     for split, n in counts.items():
         print(f"CelebA {split:5s}: {n:>7,} samples")
     print(f"CelebA total: {sum(counts.values()):>7,} samples")
 
-    # Sanity-check one landmark record (no torch required)
-    lm = _load_landmarks(CELEBA_ANNO / "list_landmarks_align_celeba.txt")
-    first_key = next(iter(lm))
-    print(f"\nFirst landmark entry  : {first_key}  ->  {lm[first_key].tolist()}")
+    # ── Per image-set sample verification ─────────────────────────────────────
+    print()
+    lm_aligned = _load_landmarks(CELEBA_LM_ALIGNED)
+    lm_wild    = _load_landmarks(CELEBA_LM_WILD)
+    first_key  = next(iter(lm_aligned))
 
-    # Verify image file exists (annotation keys are .jpg; files on disk are .png)
-    sample_img = CELEBA_IMGS / (Path(first_key).stem + ".png")
-    if sample_img.exists():
-        img = Image.open(sample_img)
-        print(f"Sample image size     : {img.size}  mode={img.mode}")
-    else:
-        print(f"WARNING: image not found at {sample_img}")
+    image_sets = [
+        ("aligned",     CELEBA_IMGS_ALIGNED,     first_key),
+        ("aligned_png", CELEBA_IMGS_ALIGNED_PNG, Path(first_key).stem + ".png"),
+        ("wild",        CELEBA_IMGS_WILD,         first_key),
+    ]
+
+    for name, imgs_dir, disk_name in image_sets:
+        img_path = imgs_dir / disk_name
+        if img_path.exists():
+            img = Image.open(img_path)
+            print(f"{name:15s}  size={str(img.size):12s}  mode={img.mode}  format={img.format}")
+        else:
+            print(f"{name:15s}  WARNING: not found at {img_path}")

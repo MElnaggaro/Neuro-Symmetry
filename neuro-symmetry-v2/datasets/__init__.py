@@ -11,7 +11,10 @@ def __getattr__(name: str) -> object:
     if name == "W300Dataset":
         from datasets.w300_loader import W300Dataset
         return W300Dataset
+    if name == "AffectNetYOLODataset":
+        from datasets.yolo_affectnet_loader import AffectNetYOLODataset
+        return AffectNetYOLODataset
     raise AttributeError(f"module 'datasets' has no attribute {name!r}")
 
 
-__all__ = ["CelebADataset", "PalsyDataset", "W300Dataset"]
+__all__ = ["CelebADataset", "PalsyDataset", "W300Dataset", "AffectNetYOLODataset"]

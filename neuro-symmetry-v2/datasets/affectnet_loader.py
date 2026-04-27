@@ -1,51 +1,35 @@
 """
-AffectNet dataset loader — stub.
+AffectNet loader — redirect module.
 
-AffectNet (~450k images) is not yet downloaded.
-This module exists as a placeholder so import paths don't break during
-Phase 1. Full implementation belongs to Phase 4 (AI Training).
+The AffectNet subset used in this project is stored in YOLO detection format
+under Datasets/YOLO_format/ (sourced from Kaggle affectnet-yolo-format).
 
-Expected on-disk layout when downloaded:
-    Datasets/AffectNet/
-        Manually_Annotated_Images/   (train images)
-        Manually_Annotated_file_list/
-            training.csv
-            validation.csv
-        Automatically_Annotated_Images/
+Use AffectNetYOLODataset from yolo_affectnet_loader instead:
 
-Expression labels used in this project (subset):
-    0 = Neutral  ← kept (maps to normal class)
-    6 = Fear     ← filtered out (not neurologically relevant)
-    7 = Contempt ← filtered out
+    from datasets.yolo_affectnet_loader import AffectNetYOLODataset
 
-See: http://mohammadmahoor.com/affectnet/
+    # All expressions — 25,262 images
+    ds = AffectNetYOLODataset(split="train")
+
+    # Neutral only — maps to label 0 (Normal class)
+    ds_normal = AffectNetYOLODataset(split="train", neutral_only=True)
+
+This stub is kept so that any code referencing affectnet_loader raises a clear
+error rather than a silent import failure.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 
-from datasets.config import AFFECTNET_ROOT
-
-
-def is_available() -> bool:
-    return AFFECTNET_ROOT.exists() and any(AFFECTNET_ROOT.iterdir())
-
-
-class AffectNetDataset:
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        if not is_available():
-            raise RuntimeError(
-                f"AffectNet dataset not found at {AFFECTNET_ROOT}. "
-                "Download it from http://mohammadmahoor.com/affectnet/ "
-                "and place it under Datasets/AffectNet/."
-            )
-        raise NotImplementedError("AffectNet loader — full implementation in Phase 4.")
+def __getattr__(name: str) -> object:
+    if name == "AffectNetDataset":
+        raise ImportError(
+            "AffectNetDataset is not implemented here. "
+            "Use: from datasets.yolo_affectnet_loader import AffectNetYOLODataset"
+        )
+    raise AttributeError(f"module 'datasets.affectnet_loader' has no attribute {name!r}")
 
 
 if __name__ == "__main__":
-    if is_available():
-        print(f"AffectNet found at {AFFECTNET_ROOT}")
-    else:
-        print(f"AffectNet NOT downloaded (expected: {AFFECTNET_ROOT})")
-        print("Stub only — full loader implemented in Phase 4.")
+    print("AffectNet data is available via datasets.yolo_affectnet_loader.")
+    print("Run:  python -m datasets.yolo_affectnet_loader")
