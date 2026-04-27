@@ -35,3 +35,6 @@ ai/runs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Downloaded model weights (large binaries — re-download via setup script)
+backend/models/
