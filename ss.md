@@ -1,8 +1,47 @@
-Multi-Format Processing: Write a robust ImageLoader that checks for .jpg, .png, and .jpeg extensions dynamically.
+Act as a Principal Machine Learning Engineer & MLOps Architect specializing in clinical-grade classification systems, imbalanced medical data, and real-time edge deployments.
 
-Massive Tokenization: Use MediaPipe Face Mesh (468 landmarks) to process the entire 400k+ dataset.
+Context: I am upgrading a facial symmetry classification system (3 classes: Normal [0], Mild [1], Severe [2]) to "Version 2". The current V1 model relies on a 50D MediaPipe Euclidean distance vector, trained on ~660K samples (heavily augmented), but struggles with a specific bottleneck.
 
-Persistent Caching: Implement a system to save extracted 50-dim feature vectors into compressed .npz files (one per dataset) to avoid re-processing.
+📊 V1 Bottleneck (The Problem to Solve):
+- F1-Macro is stuck at 0.8689 (Target > 0.92).
+- Mild class Precision is severely low (0.59).
+- Massive False Positives: 1,958 Normal misclassified as Mild, and 704 Normal misclassified as Severe.
+- Current Loss: Weighted CrossEntropy (Failed to separate hard negatives).
 
-Quality Gate: Strictly discard any frame where detection confidence < 0.8 or Laplacian variance (blur) < 80.
-To achieve Ultra Pro status in Phase 4 (AI Modeling & Calibration), the system must evolve from a basic classifier into a "clinically calibrated" diagnostic engine that balances deep learning power with medical-grade probability accuracy.1. Advanced Model Architecture (NeuroSymmetryNet)We implement a specialized architecture designed to maintain gradient stability across the 400k+ image dataset:Deep MLP Design: A 5-layer network (50→128→64→32→3) integrating Batch Normalization after every linear layer to accelerate convergence and stabilize distributions.Adaptive Dropout: Utilizing 0.3 dropout in early layers and scaling down to 0.2 in deeper layers to prevent overfitting while retaining complex geometric features.Probabilistic Output: A 3-class Logit output representing 0 (Normal), 1 (Mild), and 2 (Severe asymmetry).2. Massive Data Strategy (The "Ultra Pro" Training)With the significant imbalance between normal images (200k+) and clinical samples (14k+), the following tactics are mandatory:Weighted Random Sampling: Using a WeightedRandomSampler in PyTorch to assign higher probabilities to the clinical YFP samples during batch selection, ensuring the model learns pathology as frequently as normal anatomy.Hybrid Augmentation: Merging synthetic droop simulations with real-world palsy data to improve the model's ability to generalize across different lighting conditions and facial structures.Cosine Annealing: Implementing a learning rate scheduler that decays the rate sinusoidally, allowing the model to settle into the most stable minima during the final epochs.3. Temperature Calibration (Clinical Trust)A "confident" model is dangerous in medicine if it is wrong. We need probabilities to match reality:LBFGS Optimization: After freezing the base weights, we optimize a single parameter—Temperature ($T$)—using the LBFGS algorithm on a held-out validation set.ECE Minimization: The goal is an Expected Calibration Error (ECE) below 0.05, meaning a 90% confidence score from the model translates to a 90% real-world diagnostic accuracy.4. Professional-Grade ExportQuantized Deployment: Exporting the model to ONNX and TFLite formats using Float16 Quantization. This shrinks the model to < 3MB for ultra-fast inference on Edge devices like the Raspberry Pi 4.Automated Metrics: Generation of a comprehensive metrics_real.json report, documenting AUC-ROC, Sensitivity, and Specificity for every training run to maintain a report-grade audit trail.
+🎯 The Objective (V2 Complete Pipeline):
+I need a complete architectural overhaul of the training and inference pipelines. We are moving from a simple baseline to a state-of-the-art medical classifier. You must provide clean, modular, and production-ready PyTorch code that implements the following advanced upgrades.
+
+=========================================
+🛠️ YOUR MISSION & DELIVERABLES:
+=========================================
+
+Please provide step-by-step implementations for the following 5 modules:
+
+### 1. Advanced Feature Engineering & Data Pipeline
+- Angles & Ratios: Write a function to extract geometric ratios (e.g., eye area symmetry) and angles (e.g., mouth corner deviation from horizontal) from MediaPipe landmarks, moving beyond raw Euclidean distances.
+- Hard Negative Mining: Provide a DataLoader/Sampler strategy to isolate and heavily penalize the exact type of "Hard Normal" samples that cause False Positives.
+- Label Smoothing: Implement clinical-grade label smoothing for the targets (e.g., transforming `[1.0, 0.0, 0.0]` into `[0.9, 0.05, 0.05]`) to prevent overconfidence.
+
+### 2. Architecture Upgrade (Lightweight + Attention)
+- Upgrade the current ~17K parameter neural network by integrating a Squeeze-and-Excitation (SE) Block or a lightweight Self-Attention layer before the final classification head. 
+- Goal: Allow the model to dynamically focus on asymmetrical micro-expressions while maintaining a tiny memory footprint for edge devices.
+
+### 3. Training & Loss Optimization (CRITICAL)
+- Ditch standard Weighted CE. Implement `Focal Loss` combined with a `Margin-based penalty` (conceptually similar to ArcFace/CosFace but adapted for standard classification) to force a massive mathematical margin between the "Normal" and "Mild" feature clusters.
+
+### 4. Post-Hoc Optimization & Temporal Smoothing
+- Optimal Thresholding: Provide a validation script to compute optimal, class-specific decision thresholds (replacing `argmax`) to maximize Macro F1.
+- Confidence Calibration: Implement a Temperature Scaling layer to keep the Expected Calibration Error (ECE) < 0.05.
+- Temporal Smoothing: The model will run on live video feeds. Implement a fast `deque-based` state machine. A pathological class (Mild/Severe) MUST persist across 'N' consecutive frames (e.g., N=5) to trigger a positive detection, eliminating flickering.
+
+### 5. The Production Inference Pipeline (STRICT ARCHITECTURAL RULES)
+Write the final inference class/script. It MUST strictly adhere to the following 4 architectural principles:
+- Rule 1: Strict API Contract. Use `pydantic` or strictly typed dataclasses to define input/output schemas (e.g., probabilities, final prediction, temporal state).
+- Rule 2: Environment Variables. ALL configurable parameters (Optimal Thresholds, Temporal Window Size 'N', Temperature value, Model Path) MUST be loaded via `os.environ` or `pydantic-settings`. No hardcoded numbers.
+- Rule 3: Standardized Logging. Use Python's `logging` module. Configure proper log levels (INFO, WARNING, ERROR). `print()` is strictly forbidden.
+- Rule 4: Docker-Ready. Structure the code so it can be seamlessly encapsulated within a Dockerized microservice (e.g., a FastAPI worker).
+
+Output Format:
+- Direct, highly technical, and strictly focused on implementation.
+- Clean, thoroughly commented, and type-hinted Python code blocks.
+- Ensure the code components can be stitched together into a single cohesive system.

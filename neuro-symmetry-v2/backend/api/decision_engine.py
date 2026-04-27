@@ -100,6 +100,17 @@ class DecisionEngine:
         if self._session is None:
             print("[DecisionEngine] No ONNX model found — using threshold fallback.")
 
+        # Load scaler trained alongside the model (required for normalized features)
+        self._scaler = None
+        scaler_path = search_dir / "feature_scaler.pkl"
+        if scaler_path.exists():
+            try:
+                import joblib
+                self._scaler = joblib.load(scaler_path)
+                print(f"[DecisionEngine] Scaler loaded: {scaler_path.name}")
+            except Exception as exc:
+                print(f"[DecisionEngine] Could not load scaler: {exc}")
+
     @property
     def has_model(self) -> bool:
         return self._session is not None
@@ -110,6 +121,10 @@ class DecisionEngine:
         Accepts shape (50,) or (1, 50).
         """
         features = np.asarray(features, dtype=np.float32).ravel()
+
+        # Apply scaler if available (must match training pipeline)
+        if self._scaler is not None:
+            features = self._scaler.transform(features.reshape(1, -1))[0].astype(np.float32)
 
         if self._session is None:
             return _threshold_decision(features)
