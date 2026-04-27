@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neuro-Symmetry MVP</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+</head>
+<body>
+  <main id="app">
+    <header class="hero">
+      <p class="eyebrow">Neuro-Symmetry</p>
+      <h1>Facial asymmetry MVP</h1>
+      <p class="lede">Browser-based webcam demo for real-time face landmark tracking, scoring, and baseline calibration.</p>
+    </header>
+
+    <section id="video-container" aria-label="Webcam preview">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+    </section>
+
+    <section id="dashboard" aria-label="Live status">
+      <div class="metric">
+        <span class="metric-label">Score</span>
+        <div id="score-display">--</div>
+      </div>
+      <div id="status-badge">Initializing...</div>
+      <button id="calibration-button" type="button">Calibrate Baseline</button>
+      <div id="calibration-status">Ready</div>
+
+      <div id="pose-panel" aria-label="Head pose">
+        <span class="metric-label">Head Pose</span>
+        <div id="pose-display">
+          <span class="pose-item">Roll <strong id="pose-roll">—</strong></span>
+          <span class="pose-item">Yaw <strong id="pose-yaw">—</strong></span>
+          <span class="pose-item">Pitch <strong id="pose-pitch">—</strong></span>
+          <span id="frame-quality">—</span>
+        </div>
+      </div>
+
+      <div id="log-panel" aria-label="Event log">
+        <div class="metric-label">Logs</div>
+        <ul id="log-list"></ul>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

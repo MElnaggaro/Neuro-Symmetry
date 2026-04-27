@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Model weights and checkpoints
+ai/checkpoints/
+ai/runs/
+*.pt
+*.pth
+*.tflite
+*.onnx
+*.safetensors
+
+# Env
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db

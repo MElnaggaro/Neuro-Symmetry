@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.claude/
+env/
+dist/
+build/
+*.egg-info/
+.eggs/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.pth
+*.pt
+*.tflite
+*.onnx
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+**/frontend/dist/
+**/frontend/.vite/
+
+# Datasets — never commit raw data
+/Datasets
+
+# Model checkpoints and weights
+**/ai/checkpoints/
+**/ai/runs/
+*.safetensors
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Env files
+.env
+.env.*
