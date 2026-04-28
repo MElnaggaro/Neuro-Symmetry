@@ -122,14 +122,15 @@ class CalibratedModel(nn.Module):
         return float(self.temperature.item())
 
     # ── persistence ───────────────────────────────────────────────────────
-
-    def save(self, path: Path) -> None:
+    def save(self, path: Path, scaler=None, thresholds=None) -> None:
         torch.save(
             {
-                "base_state":  self.base.state_dict(),
+                "base_state": self.base.state_dict(),
                 "temperature": float(self.temperature.item()),
-                "n_features":  self.base.net[0].in_features,
-                "n_classes":   self.base.net[-1].out_features,
+                "n_features": self.base.net[0].in_features,
+                "n_classes": self.base.net[-1].out_features,
+                "scaler": scaler,
+                "thresholds": thresholds,
             },
             path,
         )

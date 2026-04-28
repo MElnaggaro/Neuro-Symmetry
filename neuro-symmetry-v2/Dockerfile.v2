@@ -1,0 +1,49 @@
+# Neuro-Symmetry V2 — production inference microservice
+# Build:  docker build -f Dockerfile.v2 -t neuro-symmetry-v2 .
+# Run:    docker run -p 8000:8000 -v /path/to/checkpoints:/models
+#                   -e V2_MODEL_PATH=/models/model_v2_calibrated.pt
+#                   neuro-symmetry-v2
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies for OpenCV and MediaPipe
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libglib2.0-0 libgl1-mesa-glx libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml .
+RUN pip install --no-cache-dir \
+    torch==2.3.0+cpu torchvision==0.18.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir \
+    fastapi uvicorn[standard] pydantic pydantic-settings \
+    mediapipe opencv-python-headless numpy scipy scikit-learn \
+    python-multipart
+
+COPY backend/ backend/
+COPY ai/      ai/
+
+# ── Runtime configuration — all values via environment variables ─────────────
+# Required
+ENV V2_MODEL_PATH=/models/model_v2_calibrated.pt
+
+# Optional overrides (defaults are loaded from the model checkpoint)
+ENV V2_DEVICE=cpu
+ENV V2_TEMPORAL_WINDOW=10
+ENV V2_REQUIRED_FRAMES=5
+ENV V2_USE_V2_FEATURES=0
+# ENV V2_TEMPERATURE=1.5
+# ENV V2_THRESHOLD_NORMAL=0.55
+# ENV V2_THRESHOLD_MILD=0.40
+# ENV V2_THRESHOLD_SEVERE=0.35
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
+# Run the V2 FastAPI app; 2 workers suits a single-GPU or multi-core CPU host
+CMD ["uvicorn", "ai.v2.inference_pipeline:v2_app", \
+     "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
