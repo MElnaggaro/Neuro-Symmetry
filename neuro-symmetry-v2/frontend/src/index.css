@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: "Inter", system-ui, sans-serif;
+    background-color: #040b16;
+    color: #e2e8f0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar           { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track     { background: #040b16; }
+  ::-webkit-scrollbar-thumb     { background: #0f2040; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #1a3a5c; }
+}
+
+@layer utilities {
+  .glass {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Risk-level dynamic border colors set via CSS vars */
+  .risk-border-normal   { --risk-border: #10b981; --risk-glow: rgba(16,185,129,0.2); }
+  .risk-border-mild     { --risk-border: #f59e0b; --risk-glow: rgba(245,158,11,0.25); }
+  .risk-border-high     { --risk-border: #f97316; --risk-glow: rgba(249,115,22,0.3); }
+  .risk-border-critical { --risk-border: #ef4444; --risk-glow: rgba(239,68,68,0.42); }
+
+  .risk-video-border {
+    border-color: var(--risk-border, #10b981);
+    box-shadow: 0 0 32px var(--risk-glow, rgba(16,185,129,0.2));
+  }
+}
