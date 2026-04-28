@@ -17,12 +17,14 @@ Label convention
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
+_log = logging.getLogger("neuro_symmetry.backend.decision_engine")
 
 CLASS_LABELS = ["Normal", "Mild", "Severe"]
 
@@ -92,13 +94,13 @@ class DecisionEngine:
                     providers=["CPUExecutionProvider"],
                 )
                 self._input_name = self._session.get_inputs()[0].name
-                print(f"[DecisionEngine] Loaded: {candidate.name}")
+                _log.info("Model loaded: %s", candidate.name)
                 break
             except Exception as exc:
-                print(f"[DecisionEngine] Could not load {candidate.name}: {exc}")
+                _log.warning("Could not load %s: %s", candidate.name, exc)
 
         if self._session is None:
-            print("[DecisionEngine] No ONNX model found — using threshold fallback.")
+            _log.warning("No ONNX model found — using threshold fallback.")
 
         # Load scaler trained alongside the model (required for normalized features)
         self._scaler = None
@@ -107,9 +109,9 @@ class DecisionEngine:
             try:
                 import joblib
                 self._scaler = joblib.load(scaler_path)
-                print(f"[DecisionEngine] Scaler loaded: {scaler_path.name}")
+                _log.info("Scaler loaded: %s", scaler_path.name)
             except Exception as exc:
-                print(f"[DecisionEngine] Could not load scaler: {exc}")
+                _log.warning("Could not load scaler: %s", exc)
 
     @property
     def has_model(self) -> bool:
