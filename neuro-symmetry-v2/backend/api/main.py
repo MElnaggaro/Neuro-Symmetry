@@ -63,6 +63,7 @@ from pydantic import BaseModel
 
 from ai.calibrate_baseline import BaselineCalibrator, UserBaseline
 from backend.api.change_detection import ChangeDetector
+from backend.api.prodromal import router as _prodromal_router
 from backend.api.clinical_rules import RiskLevel, apply_fast_logic
 from backend.api.confirmation_layer import ConfirmationLayer, ConfirmationState
 from backend.api.decision_engine import DecisionEngine
@@ -142,6 +143,8 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
+
+app.include_router(_prodromal_router)
 
 app.add_middleware(
     CORSMiddleware,

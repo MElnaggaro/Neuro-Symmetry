@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Wifi, WifiOff, RefreshCw, Target, Activity } from "lucide-react";
+import { Wifi, WifiOff, RefreshCw, Target, Activity, AlertTriangle } from "lucide-react";
+
+import PredictiveTriage from "@/modules/PredictiveTriage";
 
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useCamera }    from "@/hooks/useCamera";
@@ -126,6 +128,17 @@ export default function App() {
     return Math.abs(anomaly) > 2 ? "#f87171" : "#34d399";
   }, [anomaly]);
 
+  // ── Triage modal ──────────────────────────────────────────────────────────
+  const [triageDismissed, setTriageDismissed] = useState(false);
+  const prevRiskRef = useRef<RiskLevel>("NORMAL");
+  useEffect(() => {
+    if (prevRiskRef.current !== riskLevel && (riskLevel === "MILD" || riskLevel === "HIGH_RISK" || riskLevel === "CRITICAL")) {
+      setTriageDismissed(false);
+    }
+    prevRiskRef.current = riskLevel;
+  }, [riskLevel]);
+  const showTriage = !triageDismissed && (riskLevel === "MILD" || riskLevel === "HIGH_RISK" || riskLevel === "CRITICAL");
+
   return (
     <div className="flex flex-col h-screen bg-bg-base text-slate-200 font-sans overflow-hidden">
 
@@ -198,6 +211,40 @@ export default function App() {
             </span>
           )}
         </div>
+
+        {/* Tool navigation */}
+        <nav className="hidden md:flex items-center gap-1" aria-label="Tool navigation">
+          {[
+            { href: "/sentinel.html", label: "Sentinel" },
+            { href: "/mirror.html",   label: "Mirror"   },
+            { href: "/game.html",     label: "Face-Joypad" },
+            { href: "/tracker.html",  label: "Tracker"  },
+          ].map(({ href, label }) => (
+            <a
+              key={href}
+              href={href}
+              className="px-3 py-1 rounded-lg text-[10px] font-semibold tracking-wide
+                         text-slate-500 border border-transparent
+                         hover:text-accent-cyan hover:border-neu-border transition-all"
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
+
+        {/* Triage alert button — shown when asymmetry detected */}
+        {(riskLevel === "MILD" || riskLevel === "HIGH_RISK" || riskLevel === "CRITICAL") && (
+          <motion.button
+            initial={{ opacity:0, scale:0.9 }} animate={{ opacity:1, scale:1 }}
+            onClick={() => setTriageDismissed(false)}
+            className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full border
+                       bg-red-900/25 border-red-500/40 text-red-400 hover:bg-red-900/40 transition-all"
+            aria-label="Open Predictive Triage"
+          >
+            <AlertTriangle size={11} aria-hidden="true" />
+            TRIAGE
+          </motion.button>
+        )}
 
         {/* Frame counter */}
         <div className="text-[10px] font-mono text-slate-600 tabular-nums" aria-label="Frame count">
@@ -396,6 +443,17 @@ export default function App() {
           NEURO-SYMMETRY INTELLIGENCE PLATFORM · RESEARCH USE ONLY
         </span>
       </footer>
+
+      {/* ── Predictive Triage Modal ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {showTriage && (
+          <PredictiveTriage
+            key="triage"
+            riskLevel={riskLevel}
+            onDismiss={() => setTriageDismissed(true)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -10,6 +10,19 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ["@mediapipe/face_mesh", "@mediapipe/camera_utils"],
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react":   ["react", "react-dom"],
+          "vendor-motion":  ["framer-motion"],
+          "vendor-charts":  ["recharts"],
+          "vendor-lucide":  ["lucide-react"],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       "/api": {

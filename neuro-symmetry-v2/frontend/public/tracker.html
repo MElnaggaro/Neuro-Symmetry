@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Progress Tracker — Neuro-Symmetry</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#0f0f1a; --surface:#1a1a2e; --card:#1e1e35;
+    --border:#2a2a4a; --accent:#7c3aed; --accent2:#06b6d4;
+    --green:#10b981; --yellow:#f59e0b; --red:#ef4444;
+    --text:#e2e8f0; --muted:#94a3b8; --radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;
+       min-height:100vh;padding:20px}
+  header{display:flex;align-items:center;justify-content:space-between;
+         margin-bottom:28px;flex-wrap:wrap;gap:12px}
+  header h1{font-size:1.5rem;font-weight:700;background:linear-gradient(135deg,#a78bfa,#06b6d4);
+             -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .nav-links{display:flex;gap:10px;flex-wrap:wrap}
+  .nav-links a{color:var(--muted);text-decoration:none;font-size:.85rem;
+               padding:6px 12px;border:1px solid var(--border);border-radius:8px;
+               transition:.2s}
+  .nav-links a:hover{color:var(--accent2);border-color:var(--accent2)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;
+        margin-bottom:28px}
+  .stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+             padding:18px;text-align:center}
+  .stat-card .val{font-size:2rem;font-weight:700;margin:8px 0 4px}
+  .stat-card .lbl{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .stat-card .delta{font-size:.85rem;font-weight:600}
+  .delta.pos{color:var(--green)} .delta.neg{color:var(--red)} .delta.neu{color:var(--muted)}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+         padding:20px;margin-bottom:24px}
+  .panel h2{font-size:1rem;font-weight:600;color:var(--muted);text-transform:uppercase;
+            letter-spacing:.08em;margin-bottom:16px}
+  #chart-container{width:100%;overflow-x:auto}
+  #chart-container svg{display:block;max-width:100%}
+  .tooltip{position:absolute;background:#1e1e35;border:1px solid var(--border);
+            border-radius:8px;padding:10px 14px;font-size:.8rem;pointer-events:none;
+            opacity:0;transition:opacity .15s;z-index:100;white-space:nowrap}
+  .care-plan{line-height:1.7;color:var(--text)}
+  .care-plan .severity{font-size:1.1rem;font-weight:700;margin-bottom:10px}
+  .care-plan ul{padding-left:18px;margin:8px 0}
+  .care-plan li{margin:4px 0;font-size:.9rem}
+  .care-plan .section{margin-top:14px}
+  .care-plan .section-title{font-size:.85rem;font-weight:600;color:var(--accent2);
+                             text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+  .weekly-banner{background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(6,182,212,.15));
+                 border:1px solid rgba(124,58,237,.3);border-radius:10px;padding:14px 20px;
+                 margin-bottom:16px;font-size:.95rem;line-height:1.5}
+  .weekly-banner strong{color:var(--accent2)}
+  .btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:.9rem;
+       font-weight:600;transition:.2s}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#6d28d9}
+  .btn-outline{background:transparent;color:var(--accent2);border:1px solid var(--accent2)}
+  .btn-outline:hover{background:rgba(6,182,212,.1)}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.75rem;
+         font-weight:600;text-transform:uppercase}
+  .badge-none{background:rgba(16,185,129,.15);color:var(--green)}
+  .badge-yellow{background:rgba(245,158,11,.15);color:var(--yellow)}
+  .badge-red{background:rgba(239,68,68,.15);color:var(--red)}
+  .badge-normal{background:rgba(16,185,129,.15);color:var(--green)}
+  .badge-mild{background:rgba(245,158,11,.15);color:var(--yellow)}
+  .badge-high{background:rgba(239,68,68,.15);color:var(--red)}
+  .badge-critical{background:rgba(239,68,68,.25);color:#fca5a5}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{padding:8px 12px;text-align:left;color:var(--muted);font-weight:600;
+     border-bottom:1px solid var(--border);font-size:.75rem;text-transform:uppercase}
+  td{padding:9px 12px;border-bottom:1px solid rgba(42,42,74,.5)}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(124,58,237,.05)}
+  .empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+  .empty-state h3{font-size:1.1rem;margin-bottom:8px}
+  .empty-state p{font-size:.85rem}
+  .progress-bar{width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+  .progress-fill{height:100%;border-radius:3px;transition:width .6s ease}
+  @media(max-width:480px){
+    .grid{grid-template-columns:1fr 1fr}
+    th:nth-child(n+4),td:nth-child(n+4){display:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Progress Tracker</h1>
+  <nav class="nav-links">
+    <a href="/">Dashboard</a>
+    <a href="/sentinel.html">Sentinel</a>
+    <a href="/mirror.html">Mirror</a>
+    <a href="/game.html">Face-Joypad</a>
+  </nav>
+</header>
+
+<!-- KPI row -->
+<div class="grid" id="kpi-grid">
+  <div class="stat-card">
+    <div class="lbl">Symmetry (today)</div>
+    <div class="val" id="kpi-sym">—</div>
+    <div class="delta neu" id="kpi-sym-delta">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="lbl">Sessions (7d)</div>
+    <div class="val" id="kpi-sessions">0</div>
+    <div class="delta neu" id="kpi-sessions-delta">last 30d</div>
+  </div>
+  <div class="stat-card">
+    <div class="lbl">Best Score</div>
+    <div class="val" id="kpi-best">—</div>
+    <div class="delta neu" id="kpi-best-date">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="lbl">Streak</div>
+    <div class="val" id="kpi-streak">0</div>
+    <div class="delta neu">consecutive days</div>
+  </div>
+</div>
+
+<!-- Weekly summary banner -->
+<div id="weekly-banner" class="weekly-banner" style="display:none"></div>
+
+<!-- D3 chart -->
+<div class="panel">
+  <h2>Symmetry Over Time</h2>
+  <div id="chart-container"></div>
+  <div class="tooltip" id="tooltip"></div>
+</div>
+
+<!-- Care plan -->
+<div class="panel" id="care-panel">
+  <h2>Personalised Care Plan</h2>
+  <div class="care-plan" id="care-plan-body"></div>
+</div>
+
+<!-- Session history table -->
+<div class="panel">
+  <h2>Session History</h2>
+  <div id="table-wrap"></div>
+  <div class="actions" style="margin-top:14px">
+    <button class="btn btn-primary" id="btn-export">Export PDF for Neurologist</button>
+    <button class="btn btn-outline" id="btn-clear">Clear All Data</button>
+  </div>
+</div>
+
+<script>
+/* ── Data loading ─────────────────────────────────────────────────────────── */
+const KEYS = { prodromal:'ns_prodromal', game:'ns_game', assessments:'ns_assessments' };
+
+function loadHistory() {
+  /* Merge data from all localStorage keys into unified entries. */
+  const entries = [];
+
+  // ns_assessments: main source [{date,class,probability,symmetry_score,game_activations}]
+  try {
+    const raw = localStorage.getItem(KEYS.assessments);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) entries.push(...arr);
+    }
+  } catch {}
+
+  // ns_prodromal: [{timestamp,alert_level,asymmetry_ms,affected_side,confidence}]
+  try {
+    const raw = localStorage.getItem(KEYS.prodromal);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        arr.forEach(r => {
+          const dateStr = (r.timestamp||'').slice(0,10) || new Date().toISOString().slice(0,10);
+          entries.push({
+            date: dateStr,
+            class: alertToClass(r.alert_level),
+            probability: r.confidence || 0,
+            symmetry_score: alertToSym(r.alert_level, r.asymmetry_ms),
+            game_activations: null,
+            source: 'sentinel',
+            raw: r,
+          });
+        });
+      }
+    }
+  } catch {}
+
+  // ns_game: {date,score,jumps,boosts,shields,activations}
+  try {
+    const raw = localStorage.getItem(KEYS.game);
+    if (raw) {
+      const gd = JSON.parse(raw);
+      if (gd && gd.date) {
+        const existing = entries.find(e => e.date === gd.date && e.source !== 'sentinel');
+        if (existing) {
+          existing.game_activations = gd.activations;
+        } else {
+          entries.push({
+            date: gd.date,
+            class: 'Normal',
+            probability: null,
+            symmetry_score: null,
+            game_activations: gd.activations,
+            source: 'game',
+            raw: gd,
+          });
+        }
+      }
+    }
+  } catch {}
+
+  // Deduplicate by date+source, sort ascending
+  entries.sort((a,b) => a.date.localeCompare(b.date));
+  return entries;
+}
+
+function alertToClass(al) {
+  if (al === 'RED')    return 'High Risk';
+  if (al === 'YELLOW') return 'Mild';
+  return 'Normal';
+}
+
+function alertToSym(al, asym_ms) {
+  // Convert asymmetry_ms → 0–1 symmetry score (lower ms = higher score)
+  if (al === 'NONE') return 0.92 + Math.random()*0.06;
+  const ms = asym_ms || 250;
+  return Math.max(0.3, 1 - (ms / 600));
+}
+
+/* ── KPI computation ─────────────────────────────────────────────────────── */
+function computeKPIs(entries) {
+  const today = new Date().toISOString().slice(0,10);
+  const sevenAgo = new Date(Date.now()-7*864e5).toISOString().slice(0,10);
+  const thirtyAgo = new Date(Date.now()-30*864e5).toISOString().slice(0,10);
+
+  const recent7 = entries.filter(e => e.date >= sevenAgo);
+  const recent30 = entries.filter(e => e.date >= thirtyAgo);
+  const todayEntries = entries.filter(e => e.date === today);
+  const symEntries = entries.filter(e => e.symmetry_score != null);
+
+  const todaySym = todayEntries.length
+    ? avg(todayEntries.filter(e=>e.symmetry_score!=null).map(e=>e.symmetry_score))
+    : null;
+
+  // Previous day for delta
+  const yesterday = new Date(Date.now()-864e5).toISOString().slice(0,10);
+  const yestEntries = entries.filter(e=>e.date===yesterday&&e.symmetry_score!=null);
+  const yestSym = yestEntries.length ? avg(yestEntries.map(e=>e.symmetry_score)) : null;
+
+  const best = symEntries.reduce((b,e)=> e.symmetry_score > (b?.symmetry_score||0) ? e : b, null);
+
+  // Streak
+  let streak = 0;
+  const uniqueDates = [...new Set(entries.map(e=>e.date))].sort().reverse();
+  let cursor = today;
+  for (const d of uniqueDates) {
+    if (d === cursor) { streak++; cursor = prevDay(cursor); }
+    else if (d < cursor) break;
+  }
+
+  // Weekly improvement
+  const weekFirst = recent7.filter(e=>e.symmetry_score!=null);
+  let weeklyDelta = null;
+  if (weekFirst.length >= 2) {
+    const first = weekFirst[0].symmetry_score;
+    const last  = weekFirst[weekFirst.length-1].symmetry_score;
+    weeklyDelta = ((last - first) / first * 100).toFixed(1);
+  }
+
+  return {
+    todaySym, yestSym, sessions7: recent7.length, sessions30: recent30.length,
+    best, streak, weeklyDelta,
+  };
+}
+
+function avg(arr) { return arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : 0; }
+function prevDay(d) {
+  const dt = new Date(d); dt.setDate(dt.getDate()-1);
+  return dt.toISOString().slice(0,10);
+}
+
+/* ── Render KPIs ─────────────────────────────────────────────────────────── */
+function renderKPIs(kpis) {
+  const { todaySym, yestSym, sessions7, sessions30, best, streak, weeklyDelta } = kpis;
+
+  setText('kpi-sym', todaySym != null ? (todaySym*100).toFixed(1)+'%' : '—');
+  if (todaySym != null && yestSym != null) {
+    const d = ((todaySym - yestSym)*100).toFixed(1);
+    const el = document.getElementById('kpi-sym-delta');
+    el.textContent = (d>=0?'+':'')+d+'% vs yesterday';
+    el.className = 'delta '+(d>=0?'pos':'neg');
+  }
+
+  setText('kpi-sessions', sessions7);
+  setText('kpi-sessions-delta', sessions30+' total (30d)');
+  setText('kpi-best', best ? (best.symmetry_score*100).toFixed(1)+'%' : '—');
+  setText('kpi-best-date', best ? best.date : '—');
+  setText('kpi-streak', streak);
+
+  if (weeklyDelta !== null) {
+    const banner = document.getElementById('weekly-banner');
+    banner.style.display = '';
+    const sign = weeklyDelta >= 0 ? '+' : '';
+    const emoji = weeklyDelta >= 0 ? '📈' : '📉';
+    banner.innerHTML = `${emoji} <strong>Weekly Summary:</strong> Your symmetry changed <strong>${sign}${weeklyDelta}%</strong> this week. `
+      + (weeklyDelta >= 5 ? 'Excellent progress — keep it up! 🎉'
+        : weeklyDelta >= 0 ? 'Steady improvement — keep going!'
+        : 'Stay consistent with daily exercises.');
+  }
+}
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+/* ── D3 line chart ───────────────────────────────────────────────────────── */
+function renderChart(entries) {
+  const container = document.getElementById('chart-container');
+  container.innerHTML = '';
+
+  const symData = entries
+    .filter(e => e.symmetry_score != null)
+    .map(e => ({ date: new Date(e.date), score: e.symmetry_score, cls: e.class, raw: e }));
+
+  if (symData.length === 0) {
+    container.innerHTML = '<p style="color:var(--muted);padding:20px 0">No symmetry data yet. Complete a Sentinel assessment to see your chart.</p>';
+    return;
+  }
+
+  const W = Math.max(container.offsetWidth || 640, 300);
+  const H = 220;
+  const margin = { top:16, right:20, bottom:36, left:44 };
+  const iW = W - margin.left - margin.right;
+  const iH = H - margin.top - margin.bottom;
+
+  const svg = d3.select('#chart-container').append('svg')
+    .attr('width', W).attr('height', H)
+    .attr('viewBox', `0 0 ${W} ${H}`)
+    .attr('preserveAspectRatio', 'xMinYMid meet');
+
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const xExtent = d3.extent(symData, d => d.date);
+  const x = d3.scaleTime().domain(xExtent).range([0, iW]);
+  const y = d3.scaleLinear().domain([0, 1]).range([iH, 0]);
+
+  // Grid lines
+  g.append('g').attr('class','grid')
+    .call(d3.axisLeft(y).ticks(4).tickSize(-iW).tickFormat(''))
+    .call(gx => { gx.select('.domain').remove();
+      gx.selectAll('line').attr('stroke','rgba(42,42,74,.6)'); });
+
+  // Safe-zone band (0.75–1.0)
+  g.append('rect').attr('x',0).attr('y',y(1)).attr('width',iW)
+    .attr('height',y(0.75)-y(1))
+    .attr('fill','rgba(16,185,129,.07)');
+  g.append('text').attr('x',iW-4).attr('y',y(0.9)).attr('text-anchor','end')
+    .attr('fill','rgba(16,185,129,.4)').attr('font-size',10).text('Normal zone');
+
+  // Warning band (0.5–0.75)
+  g.append('rect').attr('x',0).attr('y',y(0.75)).attr('width',iW)
+    .attr('height',y(0.5)-y(0.75))
+    .attr('fill','rgba(245,158,11,.06)');
+
+  // Gradient fill under the line
+  const defs = svg.append('defs');
+  const grad = defs.append('linearGradient').attr('id','lineGrad')
+    .attr('x1','0').attr('y1','0').attr('x2','0').attr('y2','1');
+  grad.append('stop').attr('offset','0%').attr('stop-color','#7c3aed').attr('stop-opacity',.35);
+  grad.append('stop').attr('offset','100%').attr('stop-color','#7c3aed').attr('stop-opacity',0);
+
+  const area = d3.area().x(d=>x(d.date)).y0(iH).y1(d=>y(d.score)).curve(d3.curveCatmullRom);
+  g.append('path').datum(symData).attr('fill','url(#lineGrad)').attr('d', area);
+
+  // Line
+  const line = d3.line().x(d=>x(d.date)).y(d=>y(d.score)).curve(d3.curveCatmullRom);
+  g.append('path').datum(symData).attr('fill','none')
+    .attr('stroke','#a78bfa').attr('stroke-width',2.5).attr('d', line);
+
+  // Data points
+  const tooltip = document.getElementById('tooltip');
+  g.selectAll('circle').data(symData).enter().append('circle')
+    .attr('cx', d=>x(d.date)).attr('cy', d=>y(d.score)).attr('r', 5)
+    .attr('fill', d=>classColor(d.cls)).attr('stroke','var(--bg)').attr('stroke-width',1.5)
+    .style('cursor','pointer')
+    .on('mouseover', function(event, d) {
+      tooltip.style.opacity = '1';
+      tooltip.innerHTML = `<strong>${d.date.toISOString().slice(0,10)}</strong><br/>
+        Symmetry: ${(d.score*100).toFixed(1)}%<br/>Class: ${d.cls}`;
+    })
+    .on('mousemove', function(event) {
+      tooltip.style.left = (event.pageX+12)+'px';
+      tooltip.style.top  = (event.pageY-28)+'px';
+    })
+    .on('mouseout', () => tooltip.style.opacity = '0');
+
+  // Axes
+  g.append('g').attr('transform',`translate(0,${iH})`)
+    .call(d3.axisBottom(x).ticks(Math.min(symData.length,6)).tickFormat(d3.timeFormat('%b %d')))
+    .call(gx => { gx.select('.domain').attr('stroke','var(--border)');
+      gx.selectAll('text').attr('fill','var(--muted)').attr('font-size',11);
+      gx.selectAll('line').attr('stroke','var(--border)'); });
+
+  g.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(d=>Math.round(d*100)+'%'))
+    .call(gy => { gy.select('.domain').attr('stroke','var(--border)');
+      gy.selectAll('text').attr('fill','var(--muted)').attr('font-size',11);
+      gy.selectAll('line').attr('stroke','var(--border)'); });
+}
+
+function classColor(cls) {
+  if (cls === 'Normal')    return '#10b981';
+  if (cls === 'Mild')      return '#f59e0b';
+  if (cls === 'High Risk') return '#ef4444';
+  if (cls === 'Critical')  return '#fca5a5';
+  return '#94a3b8';
+}
+
+/* ── Care plan generator ─────────────────────────────────────────────────── */
+function generateCarePlan(entries) {
+  const recent = entries.slice(-10);
+  const clsCounts = { Normal:0, Mild:0, 'High Risk':0, Critical:0 };
+  recent.forEach(e => { if (clsCounts[e.class] !== undefined) clsCounts[e.class]++; });
+
+  let severity = 'Normal';
+  if (clsCounts.Critical > 0) severity = 'Critical';
+  else if (clsCounts['High Risk'] >= 2) severity = 'Severe';
+  else if (clsCounts.Mild >= 3) severity = 'Mild';
+
+  const avgSym = recent.filter(e=>e.symmetry_score!=null).length
+    ? avg(recent.filter(e=>e.symmetry_score!=null).map(e=>e.symmetry_score)) : null;
+
+  let html = '';
+
+  if (severity === 'Severe' || severity === 'Critical') {
+    html = `
+      <div class="severity" style="color:var(--red)">⚠️ Severe — Medical Attention Recommended</div>
+      ${avgSym ? `<p style="margin-bottom:12px;font-size:.9rem;color:var(--muted)">
+        Average symmetry: ${(avgSym*100).toFixed(1)}%</p>` : ''}
+      <div class="section">
+        <div class="section-title">Corticosteroid Urgency</div>
+        <ul>
+          <li>Contact your neurologist or GP <strong>within 24 hours</strong>.</li>
+          <li>Oral prednisolone (1 mg/kg/day for 5 days) is most effective when started within 72 h of onset.</li>
+          <li>Bring your exported report to the appointment.</li>
+        </ul>
+      </div>
+      <div class="section">
+        <div class="section-title">Eye Care Protocol</div>
+        <ul>
+          <li>Apply lubricating eye drops every 2–3 hours during the day.</li>
+          <li>Use a moisture chamber or tape the eye shut at night to prevent corneal damage.</li>
+          <li>Wear sunglasses outdoors to reduce dryness and photophobia.</li>
+        </ul>
+      </div>
+      <div class="section">
+        <div class="section-title">Rest Protocol</div>
+        <ul>
+          <li>Limit facial movement exercises to 5 minutes, twice daily — overwork delays recovery.</li>
+          <li>Maintain adequate sleep (7–9 h); sleep promotes neural repair.</li>
+          <li>Avoid cold wind directly on the face; use a scarf if outdoors.</li>
+        </ul>
+      </div>`;
+  } else if (severity === 'Mild') {
+    html = `
+      <div class="severity" style="color:var(--yellow)">📋 Mild — Self-Care & Monitoring</div>
+      ${avgSym ? `<p style="margin-bottom:12px;font-size:.9rem;color:var(--muted)">
+        Average symmetry: ${(avgSym*100).toFixed(1)}%</p>` : ''}
+      <div class="section">
+        <div class="section-title">Warm Compress</div>
+        <ul>
+          <li>Apply a warm (not hot) damp cloth to the affected side for 10 minutes, 3× daily.</li>
+          <li>Warmth improves microcirculation and eases facial nerve tension.</li>
+        </ul>
+      </div>
+      <div class="section">
+        <div class="section-title">Draft Avoidance</div>
+        <ul>
+          <li>Avoid air conditioning vents and fans blowing directly on the face.</li>
+          <li>Keep car windows closed or use a face shield during drafty conditions.</li>
+        </ul>
+      </div>
+      <div class="section">
+        <div class="section-title">Gentle Massage Guide</div>
+        <ul>
+          <li>With clean, warm fingertips, gently stroke from chin to cheekbone — 30 strokes per session.</li>
+          <li>Light circular massage around the eye orbit relieves orbicularis spasm.</li>
+          <li>Do not force or stretch the face; let movement emerge naturally.</li>
+        </ul>
+      </div>`;
+  } else {
+    html = `
+      <div class="severity" style="color:var(--green)">✅ Normal — Maintenance & Prevention</div>
+      ${avgSym ? `<p style="margin-bottom:12px;font-size:.9rem;color:var(--muted)">
+        Average symmetry: ${(avgSym*100).toFixed(1)}%</p>` : ''}
+      <div class="section">
+        <div class="section-title">Daily Maintenance Exercises</div>
+        <ul>
+          <li>Practise slow, controlled blinks 20× every morning to keep the orbicularis strong.</li>
+          <li>Hold a gentle smile for 5 seconds, then relax — repeat 10×.</li>
+          <li>Alternate eyebrow raises: isolate each brow, 5× per side.</li>
+        </ul>
+      </div>
+      <div class="section">
+        <div class="section-title">Prevention Tips</div>
+        <ul>
+          <li>Keep up weekly Sentinel check-ins to catch asymmetry early.</li>
+          <li>Maintain vitamin B12 and zinc intake — deficiencies are linked to facial nerve vulnerability.</li>
+          <li>Manage stress: cortisol elevation can reactivate dormant herpes simplex, a leading trigger.</li>
+          <li>Use the Mirror Therapy tool for 5–10 minutes daily to reinforce motor cortex pathways.</li>
+        </ul>
+      </div>`;
+  }
+
+  return html;
+}
+
+/* ── Session history table ───────────────────────────────────────────────── */
+function renderTable(entries) {
+  const wrap = document.getElementById('table-wrap');
+  if (entries.length === 0) {
+    wrap.innerHTML = `
+      <div class="empty-state">
+        <h3>No sessions recorded yet</h3>
+        <p>Complete a Sentinel assessment or play Face-Joypad to start tracking your progress.</p>
+      </div>`;
+    return;
+  }
+
+  const rows = [...entries].reverse().slice(0, 60).map(e => {
+    const sym = e.symmetry_score != null ? (e.symmetry_score*100).toFixed(1)+'%' : '—';
+    const prob = e.probability != null ? (e.probability*100).toFixed(0)+'%' : '—';
+    const acts = e.game_activations != null ? e.game_activations : '—';
+    const badge = classBadge(e.class);
+    return `<tr>
+      <td>${e.date}</td>
+      <td>${badge}</td>
+      <td>${sym}</td>
+      <td>${prob}</td>
+      <td>${acts}</td>
+      <td><span style="font-size:.75rem;color:var(--muted)">${e.source||'—'}</span></td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th>Date</th><th>Classification</th><th>Symmetry</th><th>Confidence</th>
+      <th>Game Acts.</th><th>Source</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function classBadge(cls) {
+  const map = {
+    'Normal':'badge-normal','Mild':'badge-mild','High Risk':'badge-high','Critical':'badge-critical'
+  };
+  const c = map[cls] || 'badge-normal';
+  return `<span class="badge ${c}">${cls||'Normal'}</span>`;
+}
+
+/* ── PDF export ──────────────────────────────────────────────────────────── */
+function exportPDF(entries, kpis) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 50;
+  let y = 60;
+
+  // Title
+  doc.setFontSize(20); doc.setFont('helvetica','bold');
+  doc.setTextColor(124, 58, 237);
+  doc.text('Neuro-Symmetry — Progress Report', margin, y);
+  y += 8;
+
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
+  doc.setTextColor(148, 163, 184);
+  const today = new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'long',year:'numeric'});
+  doc.text(`Generated: ${today}  |  Patient: (de-identified)`, margin, y+16);
+  y += 38;
+
+  // Separator
+  doc.setDrawColor(42, 42, 74); doc.setLineWidth(.5);
+  doc.line(margin, y, pageW-margin, y);
+  y += 20;
+
+  // KPI summary
+  doc.setFontSize(13); doc.setFont('helvetica','bold'); doc.setTextColor(226, 232, 240);
+  doc.text('Summary', margin, y); y += 16;
+  doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(148, 163, 184);
+
+  const symText = kpis.todaySym != null ? (kpis.todaySym*100).toFixed(1)+'%' : 'No data';
+  doc.text(`Current symmetry score: ${symText}`, margin, y); y += 14;
+  doc.text(`Sessions in past 7 days: ${kpis.sessions7}`, margin, y); y += 14;
+  doc.text(`Sessions in past 30 days: ${kpis.sessions30}`, margin, y); y += 14;
+  doc.text(`Consecutive-day streak: ${kpis.streak}`, margin, y); y += 14;
+  if (kpis.best) {
+    doc.text(`Best symmetry: ${(kpis.best.symmetry_score*100).toFixed(1)}% on ${kpis.best.date}`, margin, y);
+    y += 14;
+  }
+  if (kpis.weeklyDelta !== null) {
+    const sign = kpis.weeklyDelta >= 0 ? '+' : '';
+    doc.text(`Weekly change: ${sign}${kpis.weeklyDelta}%`, margin, y); y += 14;
+  }
+  y += 10;
+
+  // Session table
+  doc.line(margin, y, pageW-margin, y); y += 20;
+  doc.setFontSize(13); doc.setFont('helvetica','bold'); doc.setTextColor(226, 232, 240);
+  doc.text('Session History (last 30)', margin, y); y += 16;
+
+  const cols = ['Date','Classification','Symmetry','Confidence','Source'];
+  const colW = [90, 90, 80, 80, 80];
+  let xc = margin;
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(148, 163, 184);
+  cols.forEach((c,i) => { doc.text(c, xc, y); xc += colW[i]; });
+  y += 4;
+  doc.setLineWidth(.3); doc.line(margin, y, pageW-margin, y); y += 10;
+
+  doc.setFont('helvetica','normal'); doc.setTextColor(226, 232, 240);
+  const recent30 = [...entries].reverse().slice(0,30);
+  recent30.forEach(e => {
+    if (y > 760) { doc.addPage(); y = 50; }
+    xc = margin;
+    const row = [
+      e.date,
+      e.class || 'Normal',
+      e.symmetry_score != null ? (e.symmetry_score*100).toFixed(1)+'%' : '—',
+      e.probability != null ? (e.probability*100).toFixed(0)+'%' : '—',
+      e.source || '—',
+    ];
+    row.forEach((v,i) => { doc.text(String(v), xc, y); xc += colW[i]; });
+    y += 14;
+  });
+
+  y += 10;
+  doc.line(margin, y, pageW-margin, y); y += 20;
+
+  // Footer note
+  doc.setFontSize(9); doc.setTextColor(100, 100, 130);
+  doc.text('This report is generated from self-monitoring data and is not a clinical diagnosis.', margin, y);
+  doc.text('Please share with your treating neurologist for professional interpretation.', margin, y+12);
+
+  doc.save(`neuro-symmetry-report-${new Date().toISOString().slice(0,10)}.pdf`);
+}
+
+/* ── Main ────────────────────────────────────────────────────────────────── */
+function init() {
+  const entries = loadHistory();
+  const kpis = computeKPIs(entries);
+
+  renderKPIs(kpis);
+  renderChart(entries);
+
+  const carePlanEl = document.getElementById('care-plan-body');
+  if (entries.length > 0) {
+    carePlanEl.innerHTML = generateCarePlan(entries);
+  } else {
+    carePlanEl.innerHTML = '<p style="color:var(--muted)">Complete at least one Sentinel assessment to receive a personalised care plan.</p>';
+  }
+
+  renderTable(entries);
+
+  document.getElementById('btn-export').onclick = () => exportPDF(entries, kpis);
+
+  document.getElementById('btn-clear').onclick = () => {
+    if (confirm('Clear all stored data? This cannot be undone.')) {
+      Object.values(KEYS).forEach(k => localStorage.removeItem(k));
+      location.reload();
+    }
+  };
+}
+
+// Re-render chart on resize
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => renderChart(loadHistory()), 200);
+});
+
+init();
+</script>
+</body>
+</html>

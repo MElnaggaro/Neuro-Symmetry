@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FaceJoypad — Neuro-Symmetry</title>
+  <style>
+    :root {
+      --bg:      #0f172a;
+      --surface: #1e293b;
+      --panel:   #1a2535;
+      --cyan:    #22d3ee;
+      --blue:    #3b82f6;
+      --txt:     #e2e8f0;
+      --muted:   #64748b;
+      --border:  #1e3a52;
+      --green:   #34d399;
+      --amber:   #f59e0b;
+      --red:     #f87171;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--txt);
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Nav ─────────────────────────────────────────────────────────── */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: .6rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .08em;
+    }
+    nav a:hover { color: var(--cyan); }
+    nav .title {
+      color: var(--cyan);
+      font-size: .8rem;
+      font-weight: 800;
+      letter-spacing: .15em;
+      margin-left: auto;
+    }
+
+    /* ── Main layout ─────────────────────────────────────────────────── */
+    #app {
+      flex: 1;
+      display: flex;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    /* ── Game canvas ─────────────────────────────────────────────────── */
+    #game-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: .75rem;
+      gap: .75rem;
+    }
+    #game-canvas {
+      border-radius: .75rem;
+      border: 2px solid var(--border);
+      background: #0a1020;
+      image-rendering: pixelated;
+      max-width: 100%;
+    }
+
+    /* ── Sidebar: camera + controls ──────────────────────────────────── */
+    #sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      overflow-y: auto;
+    }
+
+    .sbar-section {
+      padding: .75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .sbar-title {
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .15em;
+      color: var(--muted);
+      margin-bottom: .5rem;
+    }
+
+    /* Camera preview */
+    #cam-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/3;
+      border-radius: .5rem;
+      overflow: hidden;
+      background: #000;
+    }
+    #cam-video   { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    #cam-overlay { position: absolute; inset: 0; pointer-events: none; }
+    #cam-error   { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(15,23,42,.9); color: var(--red); font-size: .7rem; text-align: center; padding: .5rem; }
+
+    /* Control indicators */
+    .ctrl-item {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .35rem 0;
+    }
+    .ctrl-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+      transition: all .1s;
+    }
+    .ctrl-dot.on { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+    .ctrl-dot.on.shield { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 6px var(--amber); }
+    .ctrl-dot.on.smile  { background: var(--green); border-color: var(--green); box-shadow: 0 0 6px var(--green); }
+    .ctrl-label {
+      font-size: .72rem;
+      color: var(--muted);
+      line-height: 1.3;
+    }
+    .ctrl-label strong { color: var(--txt); font-size: .7rem; }
+
+    /* Session stats */
+    .stat-row { display: flex; justify-content: space-between; margin-bottom: .35rem; }
+    .stat-key  { font-size: .7rem; color: var(--muted); }
+    .stat-val  { font-size: .7rem; color: var(--cyan); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* Affected side picker */
+    .side-row { display: flex; gap: .4rem; }
+    .side-pill {
+      padding: .25rem .6rem;
+      border-radius: .35rem;
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .side-pill.active { background: rgba(34,211,238,.15); border-color: var(--cyan); color: var(--cyan); }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: .55rem;
+      border-radius: .5rem;
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .07em;
+      cursor: pointer;
+      border: none;
+      transition: filter .15s;
+    }
+    .btn:hover { filter: brightness(1.1); }
+    .btn-primary { background: linear-gradient(135deg, #1d4ed8, #0891b2); color: #bfdbfe; }
+    .btn-ghost   { background: var(--panel); border: 1px solid var(--border); color: var(--muted); }
+
+    /* ── Game over overlay ───────────────────────────────────────────── */
+    #gameover {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10,16,32,.88);
+      border-radius: .75rem;
+      gap: .875rem;
+      padding: 1.25rem;
+      text-align: center;
+    }
+    #gameover.show { display: flex; }
+    #gameover h2 { font-size: 1.3rem; color: var(--cyan); letter-spacing: .1em; }
+    #gameover .go-score { font-size: 2rem; font-weight: 800; color: var(--txt); }
+    #gameover .go-stat  { font-size: .8rem; color: var(--muted); }
+    #gameover .go-prog  {
+      font-size: .875rem;
+      padding: .5rem .875rem;
+      background: rgba(34,211,238,.1);
+      border: 1px solid rgba(34,211,238,.25);
+      border-radius: .5rem;
+      color: var(--cyan);
+    }
+
+    :focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+
+    @media (max-width: 600px) {
+      #sidebar { width: 160px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav role="navigation">
+  <a href="/">← Main App</a>
+  <a href="sentinel.html">Sentinel</a>
+  <a href="mirror.html">AR Mirror</a>
+  <a href="tracker.html">Tracker</a>
+  <span class="title">FACE-JOYPAD</span>
+</nav>
+
+<div id="app">
+
+  <!-- ── Game canvas area ──────────────────────────────────────────────────── -->
+  <div id="game-wrap" role="main">
+    <div style="position:relative;display:inline-block">
+      <canvas id="game-canvas" width="640" height="280" role="img" aria-label="FaceJoypad game canvas"></canvas>
+      <div id="gameover" aria-live="assertive" aria-atomic="true">
+        <h2>SESSION COMPLETE</h2>
+        <div class="go-score" id="go-score">0</div>
+        <div class="go-stat"  id="go-stat"></div>
+        <div class="go-prog"  id="go-prog"></div>
+        <button class="btn btn-primary" id="replay-btn" style="max-width:180px">Play Again</button>
+        <a href="tracker.html" class="btn btn-ghost" style="max-width:180px;text-decoration:none;text-align:center;display:block">View Progress</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Sidebar ───────────────────────────────────────────────────────────── -->
+  <aside id="sidebar" role="complementary" aria-label="Camera and controls">
+
+    <!-- Camera preview -->
+    <div class="sbar-section">
+      <div class="sbar-title">FACE CAMERA</div>
+      <div id="cam-wrap">
+        <video id="cam-video" autoplay playsinline muted aria-label="Camera feed"></video>
+        <canvas id="cam-overlay" aria-hidden="true"></canvas>
+        <div id="cam-error" role="alert"></div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="sbar-section">
+      <div class="sbar-title">FACE CONTROLS</div>
+      <div class="ctrl-item">
+        <div class="ctrl-dot" id="dot-brow" aria-hidden="true"></div>
+        <div class="ctrl-label"><strong>EYEBROW RAISE</strong><br/>Jump</div>
+      </div>
+      <div class="ctrl-item">
+        <div class="ctrl-dot smile" id="dot-smile" aria-hidden="true"></div>
+        <div class="ctrl-label"><strong>BIG SMILE</strong><br/>Speed boost + collect</div>
+      </div>
+      <div class="ctrl-item">
+        <div class="ctrl-dot shield" id="dot-puff" aria-hidden="true"></div>
+        <div class="ctrl-label"><strong>CHEEK PUFF</strong><br/>2s shield</div>
+      </div>
+    </div>
+
+    <!-- Affected side picker -->
+    <div class="sbar-section">
+      <div class="sbar-title">TRAIN THIS SIDE</div>
+      <div class="side-row">
+        <button class="side-pill active" data-side="LEFT"  aria-pressed="true">LEFT</button>
+        <button class="side-pill"        data-side="RIGHT" aria-pressed="false">RIGHT</button>
+        <button class="side-pill"        data-side="BOTH"  aria-pressed="false">BOTH</button>
+      </div>
+    </div>
+
+    <!-- Session stats -->
+    <div class="sbar-section">
+      <div class="sbar-title">SESSION STATS</div>
+      <div class="stat-row"><span class="stat-key">Brow raises</span>  <span class="stat-val" id="stat-brow">0</span></div>
+      <div class="stat-row"><span class="stat-key">Smiles</span>       <span class="stat-val" id="stat-smile">0</span></div>
+      <div class="stat-row"><span class="stat-key">Cheek puffs</span>  <span class="stat-val" id="stat-puff">0</span></div>
+      <div class="stat-row"><span class="stat-key">Score</span>        <span class="stat-val" id="stat-score">0</span></div>
+    </div>
+
+    <!-- Start / pause -->
+    <div class="sbar-section">
+      <button class="btn btn-primary" id="start-btn">START GAME</button>
+      <div style="height:.5rem"></div>
+      <button class="btn btn-ghost"   id="pause-btn" style="display:none">PAUSE</button>
+    </div>
+
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1632090621/camera_utils.js" crossorigin="anonymous"></script>
+
+<script>
+"use strict";
+
+/* ════════════════════════════════════════════════════════════════════════════
+   FACE CONTROL SYSTEM
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* MediaPipe landmark indices — image-space (not biological) */
+const LM = {
+  // Brows (image-left = user-right, image-right = user-left)
+  BROW_L_OUTER:  70, BROW_L_INNER: 107,   // image-left brow
+  BROW_R_OUTER: 300, BROW_R_INNER: 336,   // image-right brow
+  EYE_L_TOP:     33, EYE_L_BOT:   133,    // image-left eye outer points
+  EYE_R_TOP:    263, EYE_R_BOT:   362,
+  // Smile corners
+  MOUTH_L:  61,  MOUTH_R: 291,
+  MOUTH_T: 13,   MOUTH_B: 14,   // top/bottom of mouth (mouth width proxy)
+  // Cheek width
+  CHEEK_L: 234,  CHEEK_R: 454,
+  // Face height
+  NOSE_TOP: 10,  CHIN: 152,
+};
+
+let trainSide = "LEFT";   // user's biological side to track
+
+/* Baseline state */
+const baseline = {
+  browLiftL: 0, browLiftR: 0, browN: 0,
+  mouthW: 0,    mouthN: 0,
+  cheekW: 0,    cheekN: 0,
+  ready: false,
+};
+const BASELINE_FRAMES = 45;
+
+/* Current activation state */
+const ctrl = {
+  brow:  false,
+  smile: false,
+  puff:  false,
+  // cooldown: don't re-fire within this many ms
+  lastBrow:  0,
+  lastSmile: 0,
+  lastPuff:  0,
+  COOLDOWN: 600,
+};
+
+/* Session counters */
+const session = { brow: 0, smile: 0, puff: 0 };
+
+let baselineFrames = 0;
+let lmsReady = false;
+
+/* ── Baseline update ─────────────────────────────────────────────────────── */
+function updateBaseline(L, faceH) {
+  // Brow lift = dist between brow outer and top of eye (image coords)
+  baseline.browLiftL += Math.abs(L[LM.BROW_L_OUTER].y - L[LM.EYE_L_TOP].y) / faceH;
+  baseline.browLiftR += Math.abs(L[LM.BROW_R_OUTER].y - L[LM.EYE_R_TOP].y) / faceH;
+  baseline.browN++;
+
+  // Mouth width
+  baseline.mouthW += Math.abs(L[LM.MOUTH_L].x - L[LM.MOUTH_R].x);
+  baseline.mouthN++;
+
+  // Cheek width
+  baseline.cheekW += Math.abs(L[LM.CHEEK_L].x - L[LM.CHEEK_R].x);
+  baseline.cheekN++;
+
+  if (baseline.browN >= BASELINE_FRAMES) baseline.ready = true;
+}
+
+/* ── Per-frame control computation ──────────────────────────────────────── */
+function computeControls(L, faceH, now) {
+  if (!baseline.ready) return;
+
+  const bLiftBase = baseline.browLiftL / baseline.browN;
+  const rLiftBase = baseline.browLiftR / baseline.browN;
+  const mWBase    = baseline.mouthW / baseline.mouthN;
+  const cWBase    = baseline.cheekW / baseline.cheekN;
+
+  // Brow lift: current vs baseline; track the affected (trained) side
+  const lLift = Math.abs(L[LM.BROW_L_OUTER].y - L[LM.EYE_L_TOP].y) / faceH;
+  const rLift = Math.abs(L[LM.BROW_R_OUTER].y - L[LM.EYE_R_TOP].y) / faceH;
+
+  // Biological LEFT → image-right (mirrored camera)
+  // Biological RIGHT → image-left
+  const trackedLift = trainSide === "LEFT"  ? rLift :
+                      trainSide === "RIGHT" ? lLift :
+                      Math.max(lLift, rLift);   // BOTH: max
+  const trackedBase = trainSide === "LEFT"  ? rLiftBase :
+                      trainSide === "RIGHT" ? bLiftBase :
+                      Math.max(bLiftBase, rLiftBase);
+
+  const browRaised = trackedLift < trackedBase * 0.70;  // brow UP = y decreases
+
+  // Mouth width for smile
+  const mW     = Math.abs(L[LM.MOUTH_L].x - L[LM.MOUTH_R].x);
+  const smiling = mW > mWBase * 1.18;  // 18% wider than baseline
+
+  // Cheek puff: cheek-to-cheek width increases AND mouth width increases
+  const cW     = Math.abs(L[LM.CHEEK_L].x - L[LM.CHEEK_R].x);
+  const puffed  = cW > cWBase * 1.06 && mW > mWBase * 1.10;
+
+  // Hysteresis: only fire if cooldown has passed
+  if (browRaised && !ctrl.brow && now - ctrl.lastBrow > ctrl.COOLDOWN) {
+    ctrl.brow = true; ctrl.lastBrow = now;
+    session.brow++;
+    gameFireBrow();
+  } else if (!browRaised) {
+    ctrl.brow = false;
+  }
+
+  if (smiling && !ctrl.smile && now - ctrl.lastSmile > ctrl.COOLDOWN) {
+    ctrl.smile = true; ctrl.lastSmile = now;
+    session.smile++;
+    gameFireSmile();
+  } else if (!smiling) {
+    ctrl.smile = false;
+  }
+
+  if (puffed && !ctrl.puff && now - ctrl.lastPuff > ctrl.COOLDOWN * 2) {
+    ctrl.puff = true; ctrl.lastPuff = now;
+    session.puff++;
+    gameFirePuff();
+  } else if (!puffed) {
+    ctrl.puff = false;
+  }
+
+  // Update UI dots
+  document.getElementById("dot-brow").classList.toggle("on", ctrl.brow);
+  document.getElementById("dot-smile").classList.toggle("on", ctrl.smile);
+  document.getElementById("dot-puff").classList.toggle("on", ctrl.puff);
+}
+
+/* ── MediaPipe ───────────────────────────────────────────────────────────── */
+function onFaceResults(results) {
+  const ov  = document.getElementById("cam-overlay");
+  const ctx = ov.getContext("2d");
+  ctx.clearRect(0, 0, ov.width, ov.height);
+
+  if (!results.multiFaceLandmarks || !results.multiFaceLandmarks.length) return;
+  const L = results.multiFaceLandmarks[0];
+
+  // Draw dots (cyan)
+  ctx.fillStyle = "rgba(34,211,238,.5)";
+  for (const pt of L) {
+    ctx.beginPath();
+    ctx.arc((1 - pt.x) * ov.width, pt.y * ov.height, 1.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const faceH = Math.abs(L[LM.CHIN].y - L[LM.NOSE_TOP].y);
+  if (faceH < 0.01) return;
+
+  if (baselineFrames < BASELINE_FRAMES) {
+    updateBaseline(L, faceH);
+    baselineFrames++;
+  } else {
+    computeControls(L, faceH, performance.now());
+  }
+  lmsReady = true;
+}
+
+async function initCamera() {
+  const video   = document.getElementById("cam-video");
+  const overlay = document.getElementById("cam-overlay");
+  const errDiv  = document.getElementById("cam-error");
+
+  video.addEventListener("loadedmetadata", () => {
+    overlay.width  = video.videoWidth;
+    overlay.height = video.videoHeight;
+  }, { once: true });
+
+  try {
+    const faceMesh = new FaceMesh({
+      locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`,
+    });
+    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+    faceMesh.onResults(onFaceResults);
+
+    const camera = new Camera(video, {
+      onFrame: async () => { await faceMesh.send({ image: video }); },
+      width: 320, height: 240,
+    });
+    await camera.start();
+  } catch (err) {
+    const errDiv = document.getElementById("cam-error");
+    errDiv.style.display = "flex";
+    errDiv.textContent = err.name === "NotAllowedError"
+      ? "Camera denied. Use keyboard: ↑ Jump  Z Smile  X Shield"
+      : "Camera unavailable. Use ↑ Jump  Z Smile  X Shield";
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   GAME ENGINE
+   ════════════════════════════════════════════════════════════════════════════ */
+
+const GC     = document.getElementById("game-canvas");
+const GX     = GC.getContext("2d");
+const GW     = GC.width;
+const GH     = GC.height;
+const GROUND = GH - 48;
+
+let gameState = "idle";    // idle | playing | paused | over
+let lastTs    = 0;
+let frameId   = null;
+
+/* ── Game world ──────────────────────────────────────────────────────────── */
+const player = {
+  x: 90, y: GROUND, vy: 0,
+  w: 34, h: 34,
+  jumping: false,
+  shielded: false,
+  shieldEnd: 0,
+  boosted:  false,
+  boostEnd: 0,
+  alive: true,
+};
+
+let obstacles  = [];
+let coins      = [];
+let particles  = [];
+let bgStars    = [];
+let score      = 0;
+let speed      = 3.5;
+let spawnTimer = 0;
+let coinTimer  = 0;
+const GRAVITY  = 0.55;
+const JUMP_V   = -12;
+
+/* ── Difficulty auto-scaling ─────────────────────────────────────────────── */
+// Every 500 score points, increase difficulty 1 level
+let difficulty = 1;
+let lastDifficulty = 0;
+
+// Adaptive threshold: if user is activating controls easily, require bigger movement
+let activationEase = 0;  // 0-10; increases each successful activation
+
+/* ── Background stars ────────────────────────────────────────────────────── */
+function initBg() {
+  bgStars = [];
+  for (let i = 0; i < 60; i++) {
+    bgStars.push({ x: Math.random() * GW, y: Math.random() * GROUND * 0.85, r: Math.random() * 1.2 + 0.3, spd: Math.random() * 0.4 + 0.1 });
+  }
+}
+
+/* ── Init ────────────────────────────────────────────────────────────────── */
+function initGame() {
+  Object.assign(player, { x: 90, y: GROUND, vy: 0, jumping: false, shielded: false, boosted: false, alive: true });
+  obstacles  = [];
+  coins      = [];
+  particles  = [];
+  score      = 0;
+  speed      = 3.5;
+  spawnTimer = 0;
+  coinTimer  = 0;
+  difficulty = 1;
+  lastDifficulty = 0;
+  Object.assign(session, { brow: 0, smile: 0, puff: 0 });
+  updateStatUI();
+  initBg();
+}
+
+/* ── Spawn ───────────────────────────────────────────────────────────────── */
+function spawnObstacle() {
+  const h = 20 + Math.random() * 30 * difficulty;
+  const w = 18 + Math.random() * 14;
+  obstacles.push({ x: GW + 10, y: GROUND - h + player.h, w, h });
+}
+
+function spawnCoin() {
+  const altitudes = [GROUND - 60, GROUND - 100, GROUND - 140];
+  const y = altitudes[Math.floor(Math.random() * altitudes.length)];
+  coins.push({ x: GW + 10, y, r: 8, collected: false });
+}
+
+/* ── Particle burst ──────────────────────────────────────────────────────── */
+function burst(x, y, col, n = 8) {
+  for (let i = 0; i < n; i++) {
+    const a = (Math.PI * 2 * i) / n + Math.random() * 0.4;
+    const spd = 2 + Math.random() * 3;
+    particles.push({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd - 2, life: 1, col });
+  }
+}
+
+/* ── Game actions triggered by face controls ─────────────────────────────── */
+function gameFireBrow() {
+  if (gameState !== "playing" || !player.alive) return;
+  if (!player.jumping) {
+    player.vy = JUMP_V;
+    player.jumping = true;
+    burst(player.x + player.w / 2, player.y, "#22d3ee", 6);
+    score += 2;
+    // Adaptive difficulty
+    activationEase = Math.min(10, activationEase + 1);
+  }
+}
+
+function gameFireSmile() {
+  if (gameState !== "playing" || !player.alive) return;
+  player.boosted = true;
+  player.boostEnd = performance.now() + 1500;
+  burst(player.x + player.w / 2, player.y + player.h / 2, "#34d399", 10);
+  score += 5;
+  // Collect nearby coins
+  coins.forEach((c) => {
+    if (!c.collected && Math.abs(c.x - player.x) < 80) {
+      c.collected = true;
+      burst(c.x, c.y, "#f59e0b", 5);
+      score += 10;
+    }
+  });
+  activationEase = Math.min(10, activationEase + 1);
+}
+
+function gameFirePuff() {
+  if (gameState !== "playing" || !player.alive) return;
+  player.shielded = true;
+  player.shieldEnd = performance.now() + 2000;
+  burst(player.x + player.w / 2, player.y + player.h / 2, "#f59e0b", 12);
+  score += 3;
+  activationEase = Math.min(10, activationEase + 1);
+}
+
+/* ── Keyboard fallback ───────────────────────────────────────────────────── */
+document.addEventListener("keydown", (e) => {
+  if (e.code === "ArrowUp" || e.code === "Space") { e.preventDefault(); gameFireBrow(); }
+  if (e.code === "KeyZ") gameFireSmile();
+  if (e.code === "KeyX") gameFirePuff();
+  if (e.code === "KeyP") togglePause();
+});
+
+/* ── Collision detection (AABB) ──────────────────────────────────────────── */
+function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+/* ── Update ──────────────────────────────────────────────────────────────── */
+function update(dt) {
+  if (gameState !== "playing" || !player.alive) return;
+
+  const now   = performance.now();
+  const spd   = player.boosted && now < player.boostEnd ? speed * 1.8 : speed;
+
+  // Physics
+  player.vy += GRAVITY;
+  player.y  += player.vy;
+  if (player.y >= GROUND) { player.y = GROUND; player.vy = 0; player.jumping = false; }
+
+  // Shield expiry
+  if (player.shielded && now > player.shieldEnd) player.shielded = false;
+  if (player.boosted  && now > player.boostEnd)  player.boosted  = false;
+
+  // Obstacles
+  spawnTimer -= dt;
+  if (spawnTimer <= 0) {
+    spawnObstacle();
+    spawnTimer = (1200 - difficulty * 80) / spd + Math.random() * 400;
+  }
+  obstacles.forEach((o) => { o.x -= spd; });
+  obstacles = obstacles.filter((o) => o.x > -60);
+
+  // Coins
+  coinTimer -= dt;
+  if (coinTimer <= 0) { spawnCoin(); coinTimer = 900 + Math.random() * 600; }
+  coins.forEach((c) => { c.x -= spd * 0.9; });
+  coins = coins.filter((c) => c.x > -20);
+
+  // Particles
+  particles.forEach((p) => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= 0.035; });
+  particles = particles.filter((p) => p.life > 0);
+
+  // Background
+  bgStars.forEach((s) => { s.x -= s.spd; if (s.x < 0) s.x = GW + 2; });
+
+  // Score (distance)
+  score += spd * 0.012;
+  if (score - lastDifficulty > 500) {
+    difficulty = Math.min(5, difficulty + 1);
+    speed = Math.min(8, speed + 0.4);
+    lastDifficulty += 500;
+  }
+  updateStatUI();
+
+  // Coin collection
+  coins.forEach((c) => {
+    if (!c.collected && aabb(player.x, player.y, player.w, player.h, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2)) {
+      c.collected = true;
+      burst(c.x, c.y, "#f59e0b", 5);
+      score += 10;
+    }
+  });
+
+  // Obstacle collision
+  if (!player.shielded) {
+    for (const o of obstacles) {
+      if (aabb(player.x + 4, player.y + 4, player.w - 8, player.h - 8, o.x, o.y, o.w, o.h)) {
+        triggerGameOver();
+        return;
+      }
+    }
+  }
+}
+
+/* ── Render ──────────────────────────────────────────────────────────────── */
+function render() {
+  GX.clearRect(0, 0, GW, GH);
+
+  // Sky gradient
+  const sky = GX.createLinearGradient(0, 0, 0, GROUND);
+  sky.addColorStop(0, "#050d1a");
+  sky.addColorStop(1, "#0a1828");
+  GX.fillStyle = sky; GX.fillRect(0, 0, GW, GH);
+
+  // Stars
+  bgStars.forEach((s) => {
+    GX.fillStyle = `rgba(148,163,184,${0.3 + s.r * 0.2})`;
+    GX.beginPath(); GX.arc(s.x, s.y, s.r, 0, Math.PI * 2); GX.fill();
+  });
+
+  // Ground
+  GX.fillStyle = "#1e3a52";
+  GX.fillRect(0, GROUND + player.h - 2, GW, GH - GROUND - player.h + 2);
+  GX.strokeStyle = "#22d3ee"; GX.lineWidth = 1.5;
+  GX.beginPath(); GX.moveTo(0, GROUND + player.h - 2); GX.lineTo(GW, GROUND + player.h - 2); GX.stroke();
+
+  // Score + distance
+  GX.fillStyle = "rgba(34,211,238,.7)";
+  GX.font = "bold 11px monospace";
+  GX.fillText("SCORE " + Math.floor(score), 12, 20);
+  GX.fillStyle = "rgba(100,116,139,.6)";
+  GX.font = "9px monospace";
+  GX.fillText("DIFFICULTY " + difficulty, 12, 34);
+
+  // Coins
+  coins.filter((c) => !c.collected).forEach((c) => {
+    GX.save();
+    GX.shadowColor = "#f59e0b"; GX.shadowBlur = 8;
+    GX.fillStyle = "#f59e0b";
+    GX.beginPath(); GX.arc(c.x, c.y, c.r, 0, Math.PI * 2); GX.fill();
+    GX.fillStyle = "#fff8"; GX.font = "bold 9px monospace";
+    GX.textAlign = "center"; GX.textBaseline = "middle";
+    GX.fillText("✦", c.x, c.y);
+    GX.textAlign = "left"; GX.textBaseline = "alphabetic";
+    GX.restore();
+  });
+
+  // Obstacles
+  obstacles.forEach((o) => {
+    GX.fillStyle = "#e74c3c";
+    GX.fillRect(o.x, o.y, o.w, o.h);
+    GX.strokeStyle = "#f87171"; GX.lineWidth = 1;
+    GX.strokeRect(o.x, o.y, o.w, o.h);
+    // X mark
+    GX.strokeStyle = "rgba(255,255,255,.25)"; GX.lineWidth = 1.5;
+    GX.beginPath(); GX.moveTo(o.x + 3, o.y + 3); GX.lineTo(o.x + o.w - 3, o.y + o.h - 3); GX.stroke();
+    GX.beginPath(); GX.moveTo(o.x + o.w - 3, o.y + 3); GX.lineTo(o.x + 3, o.y + o.h - 3); GX.stroke();
+  });
+
+  // Particles
+  particles.forEach((p) => {
+    GX.globalAlpha = p.life;
+    GX.fillStyle = p.col;
+    GX.beginPath(); GX.arc(p.x, p.y, 3, 0, Math.PI * 2); GX.fill();
+  });
+  GX.globalAlpha = 1;
+
+  // Player character (animated face)
+  const px = player.x, py = player.y, pw = player.w, ph = player.h;
+  const cx_ = px + pw / 2, cy_ = py + ph / 2;
+  const now = performance.now();
+
+  // Shield glow
+  if (player.shielded) {
+    GX.save();
+    GX.shadowColor = "#f59e0b"; GX.shadowBlur = 18;
+    GX.strokeStyle = "rgba(245,158,11,.6)"; GX.lineWidth = 3;
+    GX.beginPath(); GX.arc(cx_, cy_, pw * 0.7, 0, Math.PI * 2); GX.stroke();
+    GX.restore();
+  }
+
+  // Face circle
+  const headColor = player.boosted ? "#34d399" : player.shielded ? "#f59e0b" : "#22d3ee";
+  GX.save();
+  GX.shadowColor = headColor; GX.shadowBlur = 10;
+  GX.fillStyle = "#0a1828";
+  GX.strokeStyle = headColor; GX.lineWidth = 2;
+  GX.beginPath(); GX.arc(cx_, cy_, pw * 0.45, 0, Math.PI * 2);
+  GX.fill(); GX.stroke();
+  GX.restore();
+
+  // Eyes (blink when jumping)
+  const eyeY  = cy_ - ph * 0.08;
+  const eyeOff = pw * 0.13;
+  const eyeH   = player.jumping ? 0.5 : 3.5;
+  GX.fillStyle = headColor;
+  GX.fillRect(cx_ - eyeOff - 2, eyeY - eyeH / 2, 4, eyeH);
+  GX.fillRect(cx_ + eyeOff - 2, eyeY - eyeH / 2, 4, eyeH);
+
+  // Smile mouth — wider when boosted
+  const smileW = player.boosted ? pw * 0.30 : pw * 0.20;
+  GX.strokeStyle = headColor; GX.lineWidth = 1.5;
+  GX.beginPath();
+  GX.arc(cx_, cy_ + ph * 0.10, smileW, 0, Math.PI);
+  GX.stroke();
+
+  // Controls HUD bar (bottom)
+  const barY = GH - 20;
+  const ctrlItems = [
+    { key: "↑ JUMP",    active: ctrl.brow,  col: "#22d3ee" },
+    { key: "Z BOOST",   active: ctrl.smile, col: "#34d399" },
+    { key: "X SHIELD",  active: ctrl.puff,  col: "#f59e0b" },
+  ];
+  ctrlItems.forEach(({ key, active, col }, i) => {
+    const bx = 12 + i * 140;
+    GX.fillStyle = active ? `rgba(${col.slice(1).match(/../g).map(x=>parseInt(x,16)).join(',')}, .2)` : "rgba(30,58,82,.4)";
+    GX.fillRect(bx, barY - 12, 130, 16);
+    GX.strokeStyle = active ? col : "rgba(30,58,82,.6)";
+    GX.lineWidth = 1;
+    GX.strokeRect(bx, barY - 12, 130, 16);
+    GX.fillStyle = active ? col : "#64748b";
+    GX.font = "bold 9px monospace";
+    GX.fillText(key, bx + 5, barY - 1);
+  });
+}
+
+/* ── Update sidebar stats ────────────────────────────────────────────────── */
+function updateStatUI() {
+  document.getElementById("stat-brow").textContent  = session.brow;
+  document.getElementById("stat-smile").textContent = session.smile;
+  document.getElementById("stat-puff").textContent  = session.puff;
+  document.getElementById("stat-score").textContent = Math.floor(score);
+}
+
+/* ── Game over ───────────────────────────────────────────────────────────── */
+function triggerGameOver() {
+  player.alive = false;
+  gameState = "over";
+  burst(player.x + player.w / 2, player.y + player.h / 2, "#f87171", 16);
+
+  // Retrieve yesterday for comparison
+  const history = JSON.parse(localStorage.getItem("ns_game") || "[]");
+  const yesterday = history.length >= 2 ? history[history.length - 2] : null;
+  const todayTotal = session.brow + session.smile + session.puff;
+
+  // Save today
+  history.push({ date: new Date().toISOString(), score: Math.floor(score), activations: todayTotal });
+  if (history.length > 60) history.splice(0, history.length - 60);
+  localStorage.setItem("ns_game", JSON.stringify(history));
+
+  // Save to general tracker
+  const assessments = JSON.parse(localStorage.getItem("ns_assessments") || "[]");
+  assessments.push({ date: new Date().toISOString(), type: "game", score: Math.floor(score), game_activations: todayTotal });
+  if (assessments.length > 500) assessments.splice(0, assessments.length - 500);
+  localStorage.setItem("ns_assessments", JSON.stringify(assessments));
+
+  const progText = yesterday
+    ? `Activations today: ${todayTotal} vs yesterday: ${yesterday.activations} — ${
+        todayTotal > yesterday.activations
+          ? "+" + (todayTotal - yesterday.activations) + " improvement! 🎉"
+          : "Keep training!"
+      }`
+    : `Total nerve activations this session: ${todayTotal}`;
+
+  document.getElementById("go-score").textContent = "SCORE " + Math.floor(score);
+  document.getElementById("go-stat").textContent = `Brow: ${session.brow}  Smile: ${session.smile}  Shield: ${session.puff}`;
+  document.getElementById("go-prog").textContent = progText;
+  document.getElementById("gameover").classList.add("show");
+}
+
+/* ── Game loop ───────────────────────────────────────────────────────────── */
+function gameLoop(ts) {
+  const dt = Math.min(32, ts - (lastTs || ts));
+  lastTs = ts;
+  update(dt);
+  render();
+  frameId = requestAnimationFrame(gameLoop);
+}
+
+/* ── Controls ────────────────────────────────────────────────────────────── */
+function startGame() {
+  initGame();
+  document.getElementById("gameover").classList.remove("show");
+  gameState = "playing";
+  document.getElementById("start-btn").style.display = "none";
+  document.getElementById("pause-btn").style.display = "block";
+  if (!frameId) frameId = requestAnimationFrame(gameLoop);
+}
+
+function togglePause() {
+  if (gameState === "playing") {
+    gameState = "paused";
+    document.getElementById("pause-btn").textContent = "RESUME";
+  } else if (gameState === "paused") {
+    gameState = "playing";
+    document.getElementById("pause-btn").textContent = "PAUSE";
+  }
+}
+
+document.getElementById("start-btn").addEventListener("click",  startGame);
+document.getElementById("replay-btn").addEventListener("click", startGame);
+document.getElementById("pause-btn").addEventListener("click",  togglePause);
+
+/* ── Side selector ───────────────────────────────────────────────────────── */
+document.querySelectorAll(".side-pill").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".side-pill").forEach((b) => { b.classList.remove("active"); b.setAttribute("aria-pressed","false"); });
+    btn.classList.add("active");
+    btn.setAttribute("aria-pressed","true");
+    trainSide = btn.dataset.side;
+    // Reset baseline so controls re-calibrate for the selected side
+    Object.assign(baseline, { browLiftL: 0, browLiftR: 0, browN: 0, mouthW: 0, mouthN: 0, cheekW: 0, cheekN: 0, ready: false });
+    baselineFrames = 0;
+  });
+});
+
+// Restore from localStorage
+const stored = localStorage.getItem("ns_affected_side");
+if (stored && ["LEFT","RIGHT","BOTH"].includes(stored)) {
+  trainSide = stored;
+  document.querySelectorAll(".side-pill").forEach((b) => {
+    const a = b.dataset.side === stored;
+    b.classList.toggle("active", a);
+    b.setAttribute("aria-pressed", a ? "true" : "false");
+  });
+}
+
+/* ── Boot ────────────────────────────────────────────────────────────────── */
+initGame();
+render();
+initCamera();
+</script>
+</body>
+</html>
