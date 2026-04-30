@@ -1,139 +1,182 @@
 """
-XAI Engine — per-feature explainability for symmetry predictions.
+Explainable AI helpers for the 50-D V2 facial-symmetry feature vector.
 
-Contribution model
-------------------
-Each feature is assigned a raw contribution proportional to how much it
-pushes toward a pathological prediction:
-
-  • Bilateral distances and delta features: risk ↑ when feature is large.
-      contribution = abs(feature_value) × pathological_confidence
-
-  • Polarity-inverted features (EAR, texture_score): risk ↑ when value is LOW.
-      contribution = max(0, 0.5 − feature_value) × pathological_confidence
-
-Contributions are normalised relative to the top contributor, then bucketed
-into HIGH (> 60%) / MEDIUM (> 30%) / LOW (≤ 30%) tiers.
-
-Affected-side detection
------------------------
-Votes are cast using the only features that carry side-directional information
-after the absolute-value normalisation in the feature extractor:
-
-  ear_left < ear_right    → left eye more closed      → LEFT vote
-  ear_left > ear_right    → right eye more closed     → RIGHT vote
-  brow_height_left < brow_height_right → left brow lower → LEFT vote
-  brow_height_left > brow_height_right → right brow lower → RIGHT vote
-
-Tie or no significant asymmetry → BILATERAL.
+This module does not import the training stack or any deleted V1 files. It is
+designed to sit beside the ONNX inference path and explain the already-extracted
+features that were sent to the V2 model.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Iterable, Sequence
 
 import numpy as np
 
-
-_N_TOP = 8          # number of features surfaced in the API response
-_VOTE_MIN = 0.01    # minimum |left − right| to cast a side vote
-
-# Features where a LOW value (not a HIGH one) indicates higher risk
-_INVERSE_PREFIX = ("texture_score", "ear_left", "ear_right")
+_N_TOP = 5
+_SIDE_EPS = 0.01
 
 
 @dataclass(frozen=True)
 class XAIFeature:
-    feature:      str
+    feature: str
     contribution: float
-    level:        str    # "HIGH" | "MEDIUM" | "LOW"
+    level: str
+
+
+def _pathological_probability(probabilities: Sequence[float], class_id: int) -> float:
+    probs = np.asarray(probabilities, dtype=np.float32).reshape(-1)
+    if probs.size >= 3:
+        return float(max(probs[1], probs[2]))
+    if 0 <= class_id < probs.size:
+        return float(probs[class_id])
+    return 0.0
+
+
+def _level(contribution: float, top_contribution: float) -> str:
+    if top_contribution <= 0.0:
+        return "LOW"
+
+    ratio = contribution / top_contribution
+    if ratio >= 0.70:
+        return "HIGH"
+    if ratio >= 0.35:
+        return "MEDIUM"
+    return "LOW"
+
+
+def _feature_name(feature_names: Sequence[str], index: int) -> str:
+    if 0 <= index < len(feature_names):
+        return feature_names[index]
+    return f"feature_{index}"
+
+
+def _rank_contributions(
+    features: np.ndarray,
+    feature_names: Sequence[str],
+    pathological_prob: float,
+) -> list[XAIFeature]:
+    """
+    Rank clinically interpretable asymmetry features.
+
+    The ONNX graph does not expose gradients, so this uses deterministic
+    domain-weighted attribution over the 50-D feature vector. Contributions are
+    gated by pathological probability so Normal predictions produce near-zero
+    explanation scores.
+    """
+    weights = np.ones(50, dtype=np.float32) * 0.35
+    weights[0:40] = 0.45
+    weights[40] = 0.50  # ear_left
+    weights[41] = 0.50  # ear_right
+    weights[42] = 1.20  # ear_delta
+    weights[43] = 0.55  # brow_height_left
+    weights[44] = 0.55  # brow_height_right
+    weights[45] = 1.10  # brow_height_delta
+    weights[46] = 1.00  # mouth_y_delta
+    weights[47] = 0.85  # mouth_x_offset
+    weights[48] = 0.80  # low texture score
+    weights[49] = 1.35  # fused symmetry_error
+
+    signal = np.abs(features).astype(np.float32)
+    signal[48] = max(0.0, 1.0 - float(features[48]))
+    signal[49] = max(0.0, float(features[49]))
+
+    raw = signal * weights * max(0.0, min(pathological_prob, 1.0))
+    order = np.argsort(raw)[::-1]
+    top_score = float(raw[order[0]]) if order.size else 0.0
+
+    ranked: list[XAIFeature] = []
+    for index in order:
+        contribution = float(raw[index])
+        if contribution <= 0.0 and ranked:
+            break
+        ranked.append(
+            XAIFeature(
+                feature=_feature_name(feature_names, int(index)),
+                contribution=round(contribution, 4),
+                level=_level(contribution, top_score),
+            )
+        )
+        if len(ranked) >= _N_TOP:
+            break
+
+    if not ranked:
+        ranked.append(
+            XAIFeature(
+                feature=_feature_name(feature_names, 49),
+                contribution=0.0,
+                level="LOW",
+            )
+        )
+
+    return ranked
+
+
+def _vote_affected_side(features: np.ndarray) -> str:
+    """
+    Infer affected side from paired facial signals.
+
+    Lower EAR means a more closed eye; lower brow height means a dropped brow.
+    Mouth and aggregate bilateral features only vote when they clearly lean to
+    one side. Ties intentionally resolve to BILATERAL.
+    """
+    left_votes = 0
+    right_votes = 0
+
+    ear_left = float(features[40])
+    ear_right = float(features[41])
+    if abs(ear_left - ear_right) > _SIDE_EPS:
+        if ear_left < ear_right:
+            left_votes += 1
+        else:
+            right_votes += 1
+
+    brow_left = float(features[43])
+    brow_right = float(features[44])
+    if abs(brow_left - brow_right) > _SIDE_EPS:
+        if brow_left < brow_right:
+            left_votes += 1
+        else:
+            right_votes += 1
+
+    left_region = float(np.mean(features[0:20]))
+    right_region = float(np.mean(features[20:40]))
+    if abs(left_region - right_region) > _SIDE_EPS:
+        if left_region > right_region:
+            left_votes += 1
+        else:
+            right_votes += 1
+
+    if left_votes > right_votes:
+        return "LEFT"
+    if right_votes > left_votes:
+        return "RIGHT"
+    return "BILATERAL"
 
 
 def explain_prediction(
-    features:      np.ndarray,
-    feature_names: list[str],
-    probs:         list[float],
-    class_id:      int,
+    features: Iterable[float],
+    feature_names: Sequence[str],
+    probabilities: Sequence[float],
+    class_id: int,
 ) -> tuple[list[XAIFeature], str]:
     """
-    Compute feature contributions and infer the affected facial side.
+    Return ranked feature contributions and likely affected side.
 
-    Parameters
-    ----------
-    features      : (50,) float32 feature vector
-    feature_names : list of 50 feature name strings
-    probs         : [p_normal, p_mild, p_severe]
-    class_id      : argmax class (0 / 1 / 2)
-
-    Returns
-    -------
-    (ranked_features, affected_side)
-      ranked_features : list of XAIFeature, sorted by contribution descending
-      affected_side   : "LEFT" | "RIGHT" | "BILATERAL"
+    Parameters match the existing backend pipeline:
+    - ``features``: raw 50-D feature vector from ``feature_extractor``
+    - ``feature_names``: names aligned to the 50-D vector
+    - ``probabilities``: model probabilities ordered [Normal, Mild, Severe]
+    - ``class_id``: selected model class
     """
-    pathological_prob = float(probs[1] + probs[2])   # combined non-normal confidence
+    vector = np.asarray(list(features), dtype=np.float32).reshape(-1)
+    if vector.shape[0] != 50:
+        raise ValueError(f"explain_prediction expects 50 features, got {vector.shape[0]}")
+    if not np.all(np.isfinite(vector)):
+        raise ValueError("explain_prediction received non-finite features")
 
-    raw: list[tuple[str, float]] = []
-    for name, val in zip(feature_names, features):
-        fval = float(val)
-        if any(name.startswith(p) for p in _INVERSE_PREFIX):
-            contrib = max(0.0, 0.5 - fval) * pathological_prob
-        else:
-            contrib = abs(fval) * pathological_prob
-        raw.append((name, contrib))
-
-    raw.sort(key=lambda t: t[1], reverse=True)
-    top   = raw[:_N_TOP]
-    max_c = top[0][1] if top and top[0][1] > 1e-9 else 1.0
-
-    result: list[XAIFeature] = []
-    for name, c in top:
-        rel = c / max_c
-        level = "HIGH" if rel > 0.60 else "MEDIUM" if rel > 0.30 else "LOW"
-        result.append(XAIFeature(feature=name, contribution=round(c, 4), level=level))
-
-    affected_side = _detect_affected_side(features, feature_names)
-    return result, affected_side
-
-
-def _detect_affected_side(
-    features:      np.ndarray,
-    feature_names: list[str],
-) -> str:
-    """Vote LEFT / RIGHT / BILATERAL based on directional bilateral features."""
-    name_idx = {n: i for i, n in enumerate(feature_names)}
-
-    votes_left  = 0
-    votes_right = 0
-
-    def _vote(left_key: str, right_key: str, low_is_worse: bool = True) -> None:
-        """
-        Cast a side vote.
-
-        low_is_worse=True  (default): lower value on a side means that side is worse
-                                      (e.g. ear_left < ear_right → LEFT drooped).
-        low_is_worse=False: higher value on a side means that side is worse.
-        """
-        nonlocal votes_left, votes_right
-        if left_key not in name_idx or right_key not in name_idx:
-            return
-        left_val  = float(features[name_idx[left_key]])
-        right_val = float(features[name_idx[right_key]])
-        if abs(left_val - right_val) < _VOTE_MIN:
-            return
-        worse_is_left = (left_val < right_val) if low_is_worse else (left_val > right_val)
-        if worse_is_left:
-            votes_left  += 1
-        else:
-            votes_right += 1
-
-    # EAR: lower = more closed = worse
-    _vote("ear_left", "ear_right", low_is_worse=True)
-
-    # Brow height: lower = more drooped = worse
-    _vote("brow_height_left", "brow_height_right", low_is_worse=True)
-
-    if votes_left == votes_right:
-        return "BILATERAL"
-    return "LEFT" if votes_left > votes_right else "RIGHT"
+    pathological_prob = _pathological_probability(probabilities, class_id)
+    return (
+        _rank_contributions(vector, feature_names, pathological_prob),
+        _vote_affected_side(vector),
+    )

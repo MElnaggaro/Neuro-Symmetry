@@ -128,34 +128,39 @@ def extract_features(
     -------
     np.ndarray of shape (50,), dtype float32
     """
-    pts = result.normalized.points   # (478, 3) float32, nose-centred IPD-scaled
+    pts = result.normalized.points   # (478, 3) float32, nose-centred pixel space (NO IPD scaling)
+    ipd = max(result.normalized.ipd, 1.0)  # guard against degenerate detection
 
     # ── Features 0–39: bilateral mirror distances ──────────────────────────
-    feat_bilateral = _bilateral_distances(pts)   # (40,)
+    # Raw bilateral distances are in pixel space; divide by IPD for
+    # resolution-independent features matching the frontend faceMath.ts.
+    feat_bilateral = _bilateral_distances(pts) / ipd   # (40,)
 
     # ── Features 40–42: Eye Aspect Ratio ──────────────────────────────────
+    # EAR is already a ratio — scale-independent, no IPD needed.
     ear_l = _ear(pts, _EAR_LEFT)
     ear_r = _ear(pts, _EAR_RIGHT)
     ear_d = abs(ear_l - ear_r)
 
-    # ── Features 43–45: Eyebrow height (distance above nose in normalised space)
-    # In normalised y-axis: upward = more negative (nose at 0, brows above)
-    brow_h_l = float(-pts[KEY_POINTS["brow_left"],  1])   # negate: larger = higher
-    brow_h_r = float(-pts[KEY_POINTS["brow_right"], 1])
+    # ── Features 43–45: Eyebrow height (distance above nose, IPD-normalised)
+    # In pixel y-axis: upward = more negative (nose at 0, brows above)
+    brow_h_l = float(-pts[KEY_POINTS["brow_left"],  1]) / ipd   # negate: larger = higher
+    brow_h_r = float(-pts[KEY_POINTS["brow_right"], 1]) / ipd
     brow_d   = abs(brow_h_l - brow_h_r)
 
-    # ── Features 46–47: Mouth deviation ───────────────────────────────────
+    # ── Features 46–47: Mouth deviation (IPD-normalised) ──────────────────
     m_l = pts[KEY_POINTS["mouth_left"]]
     m_r = pts[KEY_POINTS["mouth_right"]]
-    mouth_y_delta  = float(abs(m_l[1] - m_r[1]))
+    mouth_y_delta  = float(abs(m_l[1] - m_r[1])) / ipd
     # x_offset: how far the mouth midpoint is from x=0 (the nose axis)
-    mouth_x_offset = float(abs((m_l[0] + m_r[0]) / 2.0))
+    mouth_x_offset = float(abs((m_l[0] + m_r[0]) / 2.0)) / ipd
 
     # ── Feature 48: texture score ──────────────────────────────────────────
     engine = texture_engine or _texture_engine
     s_texture = engine.compute(frame_bgr, result)
 
     # ── Feature 49: fused symmetry error ──────────────────────────────────
+    # Uses IPD-normalised bilateral distances so exp(-error) works correctly.
     symmetry_error = (
         _ALPHA * float(feat_bilateral.mean()) +
         _BETA  * (1.0 - s_texture)

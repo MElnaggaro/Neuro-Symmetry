@@ -1,4 +1,4 @@
-# Neuro-Symmetry v2.0
+co# Neuro-Symmetry v2.0
 
 Multimodal Neurological Signal Detection Engine — detects early signs of stroke
 and facial palsy via real-time facial asymmetry analysis.

@@ -1,12 +1,8 @@
 """
 Decision Engine — ONNX Runtime inference with threshold fallback.
 
-Searches ai/checkpoints/ for a trained model in this order:
-  1. model_real_calibrated.onnx  (trained on real data)
-  2. model_calibrated.onnx       (trained on synthetic data)
-
-Falls back to symmetry-score thresholds when no ONNX model is present,
-so the API is functional before training completes.
+All tuneable values (model search paths, severity thresholds, scaler filename)
+are injected from ``backend.core.config.Settings``.
 
 Label convention
 ----------------
@@ -24,12 +20,11 @@ from typing import Optional
 
 import numpy as np
 
+from backend.core import Settings, get_settings
+
 _log = logging.getLogger("neuro_symmetry.backend.decision_engine")
 
-CLASS_LABELS = ["Normal", "Mild", "Severe"]
-
-_MILD_THRESHOLD   = 0.75   # symmetry score below this → at least Mild
-_SEVERE_THRESHOLD = 0.55   # symmetry score below this → Severe
+CLASS_LABELS: tuple[str, str, str] = ("Normal", "Mild", "Severe")
 
 
 @dataclass(frozen=True)
@@ -46,14 +41,40 @@ def _softmax(logits: np.ndarray) -> np.ndarray:
     return (e / e.sum()).astype(np.float32)
 
 
-def _threshold_decision(features: np.ndarray) -> DecisionResult:
+def _threshold_decision(features: np.ndarray, settings: Optional[Settings] = None) -> DecisionResult:
+    """
+    Symmetry-score-based fallback used when no ONNX model is available.
+
+    score = exp(-symmetry_error) in (0, 1]
+      score >= mild_threshold   -> Normal  (high symmetry)
+      score >= severe_threshold -> Mild    (moderate asymmetry)
+      score <  severe_threshold -> Severe  (strong asymmetry)
+
+    Requires: mild_threshold > severe_threshold > 0. Validated at call time.
+    """
+    if settings is None:
+        settings = get_settings()
+    mild_t   = settings.decision.mild_threshold
+    severe_t = settings.decision.severe_threshold
+
+    # Guard: misconfigured thresholds would silently invert labels
+    if not (mild_t > severe_t > 0):
+        _log.error(
+            "Invalid threshold config: mild=%.3f severe=%.3f — "
+            "expected mild > severe > 0. Falling back to defaults (0.75 / 0.45).",
+            mild_t, severe_t,
+        )
+        mild_t, severe_t = 0.75, 0.45
+
     score = float(np.exp(-features[49]))
-    if score >= _MILD_THRESHOLD:
+
+    if score >= mild_t:
         probs, cid = [0.85, 0.12, 0.03], 0
-    elif score >= _SEVERE_THRESHOLD:
+    elif score >= severe_t:
         probs, cid = [0.10, 0.75, 0.15], 1
     else:
         probs, cid = [0.05, 0.20, 0.75], 2
+
     return DecisionResult(
         class_id=cid,
         class_label=CLASS_LABELS[cid],
@@ -67,21 +88,32 @@ class DecisionEngine:
     """
     Inference engine — ONNX Runtime preferred, threshold fallback.
 
+    Parameters
+    ----------
+    model_dir : optional Path
+        Override the directory where ONNX checkpoints are searched.
+        Defaults to ``settings.checkpoints_dir``.
+    settings  : optional Settings
+        Override the active configuration (used by tests).
+
     Usage::
+
         engine = DecisionEngine()
-        result = engine.infer(features)  # features: (50,) float32
+        result = engine.infer(features)   # features: (50,) float32
     """
 
-    def __init__(self, model_dir: Optional[Path] = None) -> None:
+    def __init__(
+        self,
+        model_dir: Optional[Path] = None,
+        settings:  Optional[Settings] = None,
+    ) -> None:
+        self._settings = settings or get_settings()
         self._session = None
         self._input_name = "features"
 
-        search_dir = model_dir or (
-            Path(__file__).resolve().parents[2] / "ai" / "checkpoints"
-        )
-        candidates = [
-            search_dir / "model_real_calibrated.onnx",
-            search_dir / "model_calibrated.onnx",
+        search_dir: Path = model_dir or self._settings.checkpoints_dir
+        candidates: list[Path] = [
+            search_dir / fname for fname in self._settings.decision.onnx_candidates
         ]
 
         for candidate in candidates:
@@ -102,9 +134,9 @@ class DecisionEngine:
         if self._session is None:
             _log.warning("No ONNX model found — using threshold fallback.")
 
-        # Load scaler trained alongside the model (required for normalized features)
+        # Load the scaler trained alongside the model (required for normalised features)
         self._scaler = None
-        scaler_path = search_dir / "feature_scaler.pkl"
+        scaler_path = search_dir / self._settings.decision.scaler_filename
         if scaler_path.exists():
             try:
                 import joblib
@@ -118,20 +150,24 @@ class DecisionEngine:
         return self._session is not None
 
     def infer(self, features: np.ndarray) -> DecisionResult:
-        """
-        Run inference on a 50-dim feature vector.
-        Accepts shape (50,) or (1, 50).
-        """
-        features = np.asarray(features, dtype=np.float32).ravel()
+        """Run inference on a 50-dim feature vector."""
+        raw_features = np.asarray(features, dtype=np.float32).ravel()
 
-        # Apply scaler if available (must match training pipeline)
-        if self._scaler is not None:
-            features = self._scaler.transform(features.reshape(1, -1))[0].astype(np.float32)
-
+        # ── Threshold fallback uses RAW features ────────────────────────
+        # _threshold_decision computes exp(-features[49]) which expects the
+        # original symmetry_error magnitude.  Feeding standard-scaled data
+        # (mean ≈ 0, var ≈ 1) would produce arbitrary garbage scores.
         if self._session is None:
-            return _threshold_decision(features)
+            return _threshold_decision(raw_features, self._settings)
 
-        x      = features.reshape(1, -1)
+        # ── ONNX path uses SCALED features ──────────────────────────────
+        # The scaler must ONLY be applied to features entering the ONNX
+        # session — never to the threshold fallback.
+        scaled = raw_features.copy()
+        if self._scaler is not None:
+            scaled = self._scaler.transform(scaled.reshape(1, -1))[0].astype(np.float32)
+
+        x      = scaled.reshape(1, -1)
         logits = self._session.run(None, {self._input_name: x})[0][0]
         probs  = _softmax(logits)
         cid    = int(probs.argmax())

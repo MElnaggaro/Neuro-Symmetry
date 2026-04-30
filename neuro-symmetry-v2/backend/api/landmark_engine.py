@@ -4,13 +4,13 @@ Landmark Engine — MediaPipe Face Landmarker wrapper.
 Provides:
   LandmarkEngine   — processes a BGR frame, returns LandmarkResult or None
   LandmarkResult   — raw + normalised landmarks, pose angles, IPD
-  NormalizedLandmarks — 478 pts in nose-centred, IPD-scaled, roll-corrected space
+  NormalizedLandmarks — 478 pts in nose-centred, roll-corrected pixel space (NO IPD scaling)
   PoseAngles       — roll / yaw / pitch in degrees from 4x4 transform matrix
 
 Normalisation coordinate system
 ─────────────────────────────────
   Origin  : nose tip (landmark 1)
-  Scale   : 1 unit = 1 IPD (interpupillary distance in source pixels)
+  Scale   : pixels (NO IPD scaling — matches frontend faceMath.ts)
   Roll    : corrected — eye line is horizontal after transform
   Yaw/Pitch: NOT corrected (handled by frame filtering in InputQualityChecker)
 
@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import math
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -37,6 +38,8 @@ import numpy as np
 
 os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 import mediapipe as mp  # noqa: E402
+
+from backend.core import get_settings
 
 # ── MediaPipe Tasks imports ───────────────────────────────────────────────────
 
@@ -80,8 +83,9 @@ MIRROR_PAIRS: list[tuple[int, int]] = [
 LEFT_INDICES:  list[int] = [l for l, _ in MIRROR_PAIRS]
 RIGHT_INDICES: list[int] = [r for _, r in MIRROR_PAIRS]
 
-# Default model path — relative to this file's location
-_DEFAULT_MODEL = Path(__file__).resolve().parent.parent / "models" / "face_landmarker.task"
+# Default model path — sourced from Settings (overridable via NS_LANDMARKER_MODEL_PATH)
+def _default_model_path() -> Path:
+    return get_settings().landmarker_model_path
 
 
 # ── Data classes ──────────────────────────────────────────────────────────────
@@ -96,7 +100,8 @@ class PoseAngles:
 @dataclass
 class NormalizedLandmarks:
     """
-    478 landmarks in nose-centred, IPD-scaled, roll-corrected space.
+    478 landmarks in nose-centred, roll-corrected pixel space.
+    NO IPD scaling (matches frontend faceMath.ts).
     points: float32 array, shape (478, 3).
     """
     points: np.ndarray   # (478, 3)
@@ -171,12 +176,15 @@ def _normalize_landmarks(
     roll = math.atan2(reye[1] - leye[1], reye[0] - leye[0])
     cos_r, sin_r = math.cos(roll), math.sin(roll)
 
-    # Translate, rotate by −roll, scale
+    # Translate, rotate by −roll (NO IPD scaling — matches frontend faceMath.ts)
+    # The ONNX model’s scaler handles normalisation; dividing by IPD here would
+    # compress the feature distribution toward zero.
     dx = pts[:, 0] - nose[0]
     dy = pts[:, 1] - nose[1]
-    x_norm = ( dx * cos_r + dy * sin_r) / ipd
-    y_norm = (-dx * sin_r + dy * cos_r) / ipd
-    z_norm =  pts[:, 2] / ipd
+    x_norm =  dx * cos_r + dy * sin_r
+    y_norm = -dx * sin_r + dy * cos_r
+    # Z-axis centering (nose tip at depth origin)
+    z_norm = pts[:, 2] - nose[2]
 
     normalised = np.stack([x_norm, y_norm, z_norm], axis=1).astype(np.float32)
     return NormalizedLandmarks(points=normalised, ipd=ipd)
@@ -198,47 +206,94 @@ class LandmarkEngine:
         engine.close()
     """
 
-    def __init__(self, model_path: Optional[Path] = None) -> None:
-        path = model_path or _DEFAULT_MODEL
+    # EMA alpha for landmark smoothing: lower = smoother but more lag.
+    # 0.5 is a good balance for 25-30 fps streams.
+    _EMA_ALPHA: float = 0.5
+
+    def __init__(
+        self,
+        model_path: Optional[Path] = None,
+        ema_alpha:  Optional[float] = None,
+    ) -> None:
+        cfg  = get_settings()
+        path = model_path or cfg.landmarker_model_path
         if not path.exists():
             raise FileNotFoundError(
                 f"Face landmarker model not found at {path}. "
                 "Download it with: python -m backend.api.landmark_engine --download"
             )
 
+        # VIDEO mode enables MediaPipe's internal Kalman/temporal smoothing so
+        # landmarks are stable across frames even when the camera shakes.
+        # IMAGE mode treats each frame independently — no cross-frame smoothing.
         opts = _FaceLandmarkerOptions(
             base_options=_BaseOptions(model_asset_path=str(path)),
-            running_mode=_RunningMode.IMAGE,
-            num_faces=1,
-            min_face_detection_confidence=0.5,
-            min_face_presence_confidence=0.5,
+            running_mode=_RunningMode.VIDEO,
+            num_faces=cfg.mediapipe.num_faces,
+            min_face_detection_confidence=cfg.mediapipe.min_face_detection_confidence,
+            min_face_presence_confidence=cfg.mediapipe.min_face_presence_confidence,
             output_face_blendshapes=False,
             output_facial_transformation_matrixes=True,
         )
         self._landmarker = _FaceLandmarker.create_from_options(opts)
+        self._start_ns:      int                     = time.perf_counter_ns()
+        self._ema_alpha:     float                   = ema_alpha if ema_alpha is not None else self._EMA_ALPHA
+        self._smoothed_pts:  Optional[np.ndarray]    = None   # (478, 3) EMA state
+
+    def _timestamp_ms(self) -> int:
+        """Monotonically increasing milliseconds since engine creation."""
+        return (time.perf_counter_ns() - self._start_ns) // 1_000_000
 
     def process(self, frame_bgr: np.ndarray) -> Optional[LandmarkResult]:
         """
         Process a single BGR frame (cv2 convention).
         Returns LandmarkResult or None if no face is found.
+
+        Landmark positions are smoothed with an EMA filter across consecutive
+        frames to suppress camera-shake jitter.  Call reset_session() when
+        switching subjects so stale smoothing state is cleared.
         """
         rgb    = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        result = self._landmarker.detect(mp_img)
+        result = self._landmarker.detect_for_video(mp_img, self._timestamp_ms())
 
         if not result.face_landmarks:
+            # Clear EMA so the next detection starts fresh without stale history.
+            self._smoothed_pts = None
             return None
 
         lms      = result.face_landmarks[0]
         mat      = result.facial_transformation_matrixes[0]
         frame_hw = (frame_bgr.shape[0], frame_bgr.shape[1])
 
+        raw_norm = _normalize_landmarks(lms, frame_hw)
+
+        # ── EMA smoothing over normalised landmark positions ──────────────
+        # Smooths out per-frame jitter from camera shake without introducing
+        # significant lag (alpha=0.5 gives a half-life of ~1 frame at 30 fps).
+        if self._smoothed_pts is None:
+            self._smoothed_pts = raw_norm.points.copy()
+        else:
+            self._smoothed_pts = (
+                self._ema_alpha * raw_norm.points
+                + (1.0 - self._ema_alpha) * self._smoothed_pts
+            ).astype(np.float32)
+
+        smoothed_norm = NormalizedLandmarks(
+            points=self._smoothed_pts.copy(),
+            ipd=raw_norm.ipd,
+        )
+
         return LandmarkResult(
             raw=lms,
-            normalized=_normalize_landmarks(lms, frame_hw),
+            normalized=smoothed_norm,
             pose=_extract_pose(mat),
             frame_hw=frame_hw,
         )
+
+    def reset_session(self) -> None:
+        """Clear EMA state — call between subjects or when restarting a session."""
+        self._smoothed_pts = None
 
     def close(self) -> None:
         self._landmarker.close()
@@ -261,7 +316,7 @@ if __name__ == "__main__":
             "https://storage.googleapis.com/mediapipe-models/"
             "face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
         )
-        dest = _DEFAULT_MODEL
+        dest = _default_model_path()
         dest.parent.mkdir(parents=True, exist_ok=True)
         print(f"Downloading model -> {dest} ...")
         urllib.request.urlretrieve(url, dest)

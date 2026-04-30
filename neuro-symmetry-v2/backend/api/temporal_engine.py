@@ -1,16 +1,10 @@
 """
 Temporal Engine — time-series tracking of facial asymmetry.
 
-Maintains a rolling history of symmetry scores and class predictions,
-computing:
-  • EMA (exponential moving average) score — noise-smoothed baseline
-  • Slope — linear trend over the last SLOPE_WINDOW frames (per-frame Δ)
-  • Onset frame — when the first alert was detected
-  • Duration — frames elapsed since onset
+EMA (exponential moving average) score, slope, onset frame, duration.
+Tuneable values come from ``backend.core.config.TemporalSettings``.
 
 EMA update rule:  ema_t = α·score_t + (1−α)·ema_{t−1}
-  α = 0.10 → slow-reacting, good for separating noise from trend
-
 Slope sign convention:
   Positive  → score rising (asymmetry improving)
   Negative  → score falling (asymmetry worsening)
@@ -24,63 +18,68 @@ from typing import Optional
 
 import numpy as np
 
-EMA_ALPHA    = 0.10    # smoothing factor
-SLOPE_WINDOW = 30      # frames over which slope is estimated
-MIN_SLOPE_N  = 5       # minimum frames before reporting a slope
+from backend.core import TemporalSettings, get_settings
 
 
 @dataclass(frozen=True)
 class TemporalState:
-    ema_score:      float          # exponential moving average of symmetry score
-    slope:          float          # per-frame trend in score (+ = improving)
-    onset_frame:    Optional[int]  # frame index when first alert appeared (None if normal)
-    duration_frames: int           # frames elapsed since onset (0 if normal)
-    frame_count:    int            # total frames processed by this engine
+    ema_score:       float
+    slope:           float
+    onset_frame:     Optional[int]
+    duration_frames: int
+    frame_count:     int
 
 
 class TemporalEngine:
-    """
-    Per-session temporal tracker.
-
-    Call ``update(score, class_id)`` once per usable frame.
-    Returns a ``TemporalState`` every call.
-    """
+    """Per-session temporal tracker — call ``update(score, class_id)`` per frame."""
 
     def __init__(
         self,
-        ema_alpha:    float = EMA_ALPHA,
-        slope_window: int   = SLOPE_WINDOW,
+        ema_alpha:    Optional[float] = None,
+        slope_window: Optional[int]   = None,
+        min_slope_n:  Optional[int]   = None,
+        settings:     Optional[TemporalSettings] = None,
     ) -> None:
-        self._alpha       = ema_alpha
-        self._slope_buf:  deque[float] = deque(maxlen=slope_window)
-        self._ema:        Optional[float] = None
-        self._onset_frame: Optional[int]  = None
-        self._frame_count = 0
+        cfg = settings or get_settings().temporal
+        self._alpha       = ema_alpha    if ema_alpha    is not None else cfg.ema_alpha
+        self._min_slope_n = min_slope_n  if min_slope_n  is not None else cfg.min_slope_n
+        self._slope_buf:  deque[float] = deque(
+            maxlen=slope_window if slope_window is not None else cfg.slope_window,
+        )
+        self._ema:         Optional[float] = None
+        self._onset_frame: Optional[int]   = None
+        self._frame_count                 = 0
+        # Temporal hysteresis: require this many consecutive Normal frames
+        # before resetting the onset tracker.  Prevents a single false-negative
+        # frame (camera jitter, transient detection miss) from destroying the
+        # continuous duration measurement.
+        self._recovery_patience           = 15
+        self._normal_streak               = 0
 
     def update(self, score: float, class_id: int) -> TemporalState:
-        """
-        Ingest one frame.  Returns updated TemporalState.
-
-        Parameters
-        ----------
-        score    : symmetry score ∈ [0, 1]
-        class_id : 0 = Normal, 1 = Mild, 2 = Severe
-        """
         self._frame_count += 1
         self._slope_buf.append(score)
 
-        # EMA — warm-start on first frame
         if self._ema is None:
             self._ema = score
         else:
             self._ema = self._alpha * score + (1.0 - self._alpha) * self._ema
 
-        # Onset tracking: latch on first alert; release if back to Normal
+        # ── Onset tracking with temporal hysteresis ─────────────────────
         if class_id != 0:
+            # Pathological frame → reset the Normal-streak counter and
+            # start (or continue) tracking the onset.
+            self._normal_streak = 0
             if self._onset_frame is None:
                 self._onset_frame = self._frame_count
         else:
-            self._onset_frame = None
+            # Normal frame → increment the recovery counter.  Only reset
+            # the onset after a sustained run of Normal frames exceeds
+            # the patience threshold.  This prevents a single jittery
+            # false-negative from wiping the duration tracking.
+            self._normal_streak += 1
+            if self._normal_streak >= self._recovery_patience:
+                self._onset_frame = None
 
         duration = (
             self._frame_count - self._onset_frame
@@ -97,11 +96,10 @@ class TemporalEngine:
 
     def _compute_slope(self) -> float:
         n = len(self._slope_buf)
-        if n < MIN_SLOPE_N:
+        if n < self._min_slope_n:
             return 0.0
         x = np.arange(n, dtype=np.float64)
         y = np.array(self._slope_buf, dtype=np.float64)
-        # First-degree polynomial fit → slope coefficient
         return float(np.polyfit(x, y, 1)[0])
 
     def reset(self) -> None:
@@ -109,3 +107,4 @@ class TemporalEngine:
         self._ema = None
         self._onset_frame = None
         self._frame_count = 0
+        self._normal_streak = 0

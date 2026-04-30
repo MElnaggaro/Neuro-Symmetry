@@ -304,7 +304,7 @@ def train(
         lr=lr, weight_decay=1e-4,
     )
     scheduler  = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
-    scaler_amp = torch.cuda.amp.GradScaler() if device.type == "cuda" else None
+    scaler_amp = torch.amp.GradScaler("cuda") if device.type == "cuda" else None
 
     # ── Training loop ─────────────────────────────────────────────────────────
     best_f1:          float          = 0.0
@@ -368,7 +368,7 @@ def train(
 
                 optimizer.zero_grad(set_to_none=True)
                 if scaler_amp:
-                    with torch.cuda.amp.autocast():
+                    with torch.amp.autocast("cuda"):
                         logits, emb = base(xb)
                         loss: torch.Tensor = criterion(logits, emb, yb, smooth)
                     scaler_amp.scale(loss).backward()

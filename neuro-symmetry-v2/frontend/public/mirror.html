@@ -321,7 +321,6 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1632090621/camera_utils.js" crossorigin="anonymous"></script>
 
 <script>
 "use strict";
@@ -342,9 +341,35 @@ const arcPath       = document.getElementById("arc-path");
 const arcLabel      = document.getElementById("arc-label");
 const scoreDisplay  = document.getElementById("score-display");
 const camError      = document.getElementById("cam-error");
+const mirrorBuffer  = document.createElement("canvas");
 
 /* ── Arc arc: stroke-dasharray for a 157px-perimeter half-circle ─────────── */
 const ARC_LEN = 157;
+
+function normalizeRawLandmarks(L) {
+  const sx = Math.max(video.videoWidth || 1, 1);
+  const sy = Math.max(video.videoHeight || 1, 1);
+  const nose = L[1];
+  const le = L[33], re = L[263];
+  const dxEye = re.x * sx - le.x * sx;
+  const dyEye = re.y * sy - le.y * sy;
+  const ipd = Math.max(Math.hypot(dxEye, dyEye), 1e-6);
+  const roll = Math.atan2(dyEye, dxEye);
+  const cos = Math.cos(roll);
+  const sin = Math.sin(roll);
+
+  return L.map((p) => {
+    const dx = p.x * sx - nose.x * sx;
+    const dy = p.y * sy - nose.y * sy;
+    // Same affine transform as the React FaceTrackingProvider:
+    // translate to nose origin, rotate by -roll, then scale by IPD.
+    return {
+      x: (dx * cos + dy * sin) / ipd,
+      y: (-dx * sin + dy * cos) / ipd,
+      z: (((p.z || 0) - (nose.z || 0)) * sx) / ipd,
+    };
+  });
+}
 
 function updateArc(score) {
   const offset = ARC_LEN * (1 - Math.max(0, Math.min(1, score)));
@@ -373,40 +398,63 @@ function drawFrame() {
   ctx.restore();
 
   if (therapyOn && affectedSide !== "AUTO") {
-    // Determine which half of the IMAGE is affected (camera-space)
-    // user's biological LEFT → appears on RIGHT side of camera image
+    // user's biological LEFT → appears on IMAGE-RIGHT side (camera-space)
     const affectedIsImageRight = (affectedSide === "LEFT");
-    const mx = midlineX * W;   // midline in canvas pixels
+    const mx    = midlineX * W;
+    const BLEND = W * 0.18;   // feather zone width (18 % of canvas)
 
-    ctx.save();
+    // ── Build mirrored frame in an offscreen canvas ──────────────────────
+    const off    = mirrorBuffer;
+    off.width    = W; off.height = H;
+    const offCtx = off.getContext("2d");
+
+    // Draw the horizontally-flipped video into the offscreen canvas
+    offCtx.translate(W, 0);
+    offCtx.scale(-1, 1);
+    offCtx.drawImage(video, 0, 0, W, H);
+    offCtx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // ── Apply gradient alpha mask (destination-in) ───────────────────────
+    // The mask is opaque over the affected side, transparent over the healthy
+    // side, with a BLEND-wide feather zone at the midline.
+    offCtx.globalCompositeOperation = "destination-in";
+    const g = offCtx.createLinearGradient(0, 0, W, 0);
+
     if (affectedIsImageRight) {
-      // Healthy half = image-left (x from 0 to mx)
-      // Overlay: mirror image-left half onto image-right half
-      ctx.beginPath();
-      ctx.rect(mx, 0, W - mx, H);
-      ctx.clip();
-      ctx.translate(W, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, 0, 0, W, H);
+      // Affected = right side (x > mx)
+      const a = Math.max(0, (mx - BLEND * 0.35) / W);
+      const b = Math.min(1, (mx + BLEND) / W);
+      g.addColorStop(0, "rgba(0,0,0,0)");
+      g.addColorStop(a, "rgba(0,0,0,0)");
+      g.addColorStop(mx / W, "rgba(0,0,0,.45)");
+      g.addColorStop(b, "rgba(0,0,0,1)");
+      g.addColorStop(1, "rgba(0,0,0,1)");
     } else {
-      // Healthy half = image-right (x from mx to W)
-      // Overlay: mirror image-right half onto image-left half
-      ctx.beginPath();
-      ctx.rect(0, 0, mx, H);
-      ctx.clip();
-      ctx.translate(W, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, 0, 0, W, H);
+      // Affected = left side (x < mx)
+      const a = Math.max(0, (mx - BLEND) / W);
+      const b = Math.min(1, (mx + BLEND * 0.35) / W);
+      g.addColorStop(0, "rgba(0,0,0,1)");
+      g.addColorStop(a, "rgba(0,0,0,1)");
+      g.addColorStop(mx / W, "rgba(0,0,0,.45)");
+      g.addColorStop(b, "rgba(0,0,0,0)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
     }
-    ctx.restore();
 
-    // Soft blend seam at midline
-    const grad = ctx.createLinearGradient(mx - 12, 0, mx + 12, 0);
-    grad.addColorStop(0, "transparent");
-    grad.addColorStop(0.5, "rgba(34,211,238,.18)");
-    grad.addColorStop(1, "transparent");
-    ctx.fillStyle = grad;
-    ctx.fillRect(mx - 12, 0, 24, H);
+    offCtx.fillStyle = g;
+    offCtx.fillRect(0, 0, W, H);
+
+    // ── Composite the masked mirror over the raw frame ───────────────────
+    ctx.drawImage(off, 0, 0);
+
+    // Subtle cyan seam line at the midline
+    ctx.save();
+    ctx.strokeStyle = "rgba(34,211,238,.30)";
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(mx, 0); ctx.lineTo(mx, H);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // Update midline CSS position
@@ -419,6 +467,7 @@ function onResults(results) {
 
   if (!results.multiFaceLandmarks || !results.multiFaceLandmarks.length) return;
   const lms = results.multiFaceLandmarks[0];
+  const norm = normalizeRawLandmarks(lms);
 
   // Face midline = average x of landmark 10 (forehead) and 152 (chin)
   // MediaPipe x is in [0,1] from left edge — we DON'T flip here because
@@ -430,16 +479,16 @@ function onResults(results) {
   // AUTO mode: determine affected side from facial symmetry asymmetry
   if (affectedSide === "AUTO") {
     // Use bilateral distance of mouth corners as quick proxy
-    const mL = lms[61], mR = lms[291];
-    const asymL = Math.abs(mL.y - lms[152].y);
-    const asymR = Math.abs(mR.y - lms[152].y);
+    const mL = norm[61], mR = norm[291];
+    const asymL = Math.abs(mL.y - norm[152].y);
+    const asymR = Math.abs(mR.y - norm[152].y);
     // The side closer to chin (lower mouth corner) is likely dropped = affected
     // A dropped corner has higher .y value (lower on screen)
     // Actually: affected side has the corner that is LOWER (higher y)
     if (Math.abs(asymL - asymR) > 0.01) {
       // In camera-space: LEFT landmark 61 corresponds to user's RIGHT biological side
       // If lms[61].y > lms[291].y → image-left corner is lower → user's RIGHT is affected
-      affectedSide = lms[61].y > lms[291].y ? "RIGHT" : "LEFT";
+      affectedSide = norm[61].y > norm[291].y ? "RIGHT" : "LEFT";
     }
   }
 }
@@ -453,10 +502,9 @@ async function fetchSymmetryScore() {
   const c = _captureCanvas;
   const cx = c.getContext("2d");
   cx.drawImage(video, 0, 0, c.width, c.height);
-  const b64 = c.toDataURL("image/jpeg", 0.5).split(",")[1];
-  if (!b64) return;
   try {
-    const blob = await (await fetch("data:image/jpeg;base64," + b64)).blob();
+    const blob = await new Promise((resolve) => c.toBlob(resolve, "image/jpeg", 0.5));
+    if (!blob) return;
     const fd = new FormData();
     fd.append("file", blob, "frame.jpg");
     const r = await fetch("/api/analyze", { method: "POST", body: fd });
@@ -465,7 +513,6 @@ async function fetchSymmetryScore() {
       if (d.symmetry_score != null) {
         symmetryScore = d.symmetry_score;
         updateArc(symmetryScore);
-        // If AUTO, also use backend affected_side
         if (affectedSide === "AUTO" && d.affected_side) {
           affectedSide = d.affected_side;
         }
@@ -488,15 +535,22 @@ async function initCamera() {
     });
     faceMesh.onResults(onResults);
 
-    const camera = new Camera(video, {
-      onFrame: async () => { await faceMesh.send({ image: video }); },
-      width: 640, height: 480,
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+      audio: false,
     });
-    await camera.start();
+    video.srcObject = stream;
+    await video.play();
 
     // Kick off animation loop
-    requestAnimationFrame(function loop() {
+    let processing = false;
+    requestAnimationFrame(async function loop() {
       drawFrame();
+      if (!processing && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        processing = true;
+        try { await faceMesh.send({ image: video }); }
+        finally { processing = false; }
+      }
       requestAnimationFrame(loop);
     });
 

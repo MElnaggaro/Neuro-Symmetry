@@ -2,17 +2,17 @@ import type { ReactNode, CSSProperties } from "react";
 import { motion } from "framer-motion";
 
 interface CardProps {
-  children:  ReactNode;
+  children:   ReactNode;
   className?: string;
   style?:     CSSProperties;
   /** When true the card expands to fill remaining height. */
-  flex?:     boolean;
+  flex?:      boolean;
 }
 
 /**
  * Glassmorphic dark card — the foundational layout primitive.
  * Uses Framer Motion's layout engine so sibling cards animate
- * smoothly when XAI breakdown changes height.
+ * smoothly when the XAI breakdown changes height.
  */
 export function Card({ children, className = "", style, flex = false }: CardProps) {
   return (

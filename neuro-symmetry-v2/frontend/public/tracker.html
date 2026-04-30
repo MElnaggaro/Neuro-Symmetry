@@ -6,6 +6,7 @@
 <title>Progress Tracker — Neuro-Symmetry</title>
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root {
     --bg:#0f0f1a; --surface:#1a1a2e; --card:#1e1e35;
@@ -157,11 +158,17 @@ function loadHistory() {
   const entries = [];
 
   // ns_assessments: main source [{date,class,probability,symmetry_score,game_activations}]
+  // Normalize date to YYYY-MM-DD (game.html saves full ISO strings)
   try {
     const raw = localStorage.getItem(KEYS.assessments);
     if (raw) {
       const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) entries.push(...arr);
+      if (Array.isArray(arr)) {
+        entries.push(...arr.map(e => ({
+          ...e,
+          date: typeof e.date === 'string' ? e.date.slice(0, 10) : e.date,
+        })));
+      }
     }
   } catch {}
 
@@ -187,27 +194,30 @@ function loadHistory() {
     }
   } catch {}
 
-  // ns_game: {date,score,jumps,boosts,shields,activations}
+  // ns_game: saved by game.html as [{date,score,activations}] (array)
   try {
     const raw = localStorage.getItem(KEYS.game);
     if (raw) {
       const gd = JSON.parse(raw);
-      if (gd && gd.date) {
-        const existing = entries.find(e => e.date === gd.date && e.source !== 'sentinel');
+      const records = Array.isArray(gd) ? gd : (gd && gd.date ? [gd] : []);
+      records.forEach(rec => {
+        if (!rec.date) return;
+        const dateStr = rec.date.slice(0, 10);
+        const existing = entries.find(e => e.date === dateStr && e.source !== 'sentinel');
         if (existing) {
-          existing.game_activations = gd.activations;
+          existing.game_activations = (existing.game_activations || 0) + (rec.activations || 0);
         } else {
           entries.push({
-            date: gd.date,
+            date: dateStr,
             class: 'Normal',
             probability: null,
             symmetry_score: null,
-            game_activations: gd.activations,
+            game_activations: rec.activations || 0,
             source: 'game',
-            raw: gd,
+            raw: rec,
           });
         }
-      }
+      });
     }
   } catch {}
 
@@ -561,92 +571,221 @@ function classBadge(cls) {
   return `<span class="badge ${c}">${cls||'Normal'}</span>`;
 }
 
-/* ── PDF export ──────────────────────────────────────────────────────────── */
-function exportPDF(entries, kpis) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit:'pt', format:'a4' });
-  const pageW = doc.internal.pageSize.getWidth();
-  const margin = 50;
-  let y = 60;
+/* ── PDF export — visual screenshot via html2canvas ─────────────────────── */
+async function exportPDFLegacy(entries, kpis) {
+  const btn = document.getElementById('btn-export');
+  btn.disabled = true;
+  btn.textContent = 'Capturing…';
 
-  // Title
-  doc.setFontSize(20); doc.setFont('helvetica','bold');
-  doc.setTextColor(124, 58, 237);
-  doc.text('Neuro-Symmetry — Progress Report', margin, y);
-  y += 8;
+  try {
+    const { jsPDF } = window.jspdf;
 
-  doc.setFontSize(10); doc.setFont('helvetica','normal');
-  doc.setTextColor(148, 163, 184);
-  const today = new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'long',year:'numeric'});
-  doc.text(`Generated: ${today}  |  Patient: (de-identified)`, margin, y+16);
-  y += 38;
+    // Hide the action buttons during capture so they don't appear in the PDF
+    const actions = document.querySelectorAll('.actions');
+    actions.forEach(el => el.style.visibility = 'hidden');
 
-  // Separator
-  doc.setDrawColor(42, 42, 74); doc.setLineWidth(.5);
-  doc.line(margin, y, pageW-margin, y);
-  y += 20;
+    // Capture the full page at 1.5× for crisp output
+    const canvas = await html2canvas(document.body, {
+      backgroundColor: '#0f0f1a',
+      scale:           1.5,
+      useCORS:         true,
+      logging:         false,
+      // Avoid capturing fixed elements (tooltips)
+      ignoreElements:  el => el.id === 'tooltip',
+    });
 
-  // KPI summary
-  doc.setFontSize(13); doc.setFont('helvetica','bold'); doc.setTextColor(226, 232, 240);
-  doc.text('Summary', margin, y); y += 16;
-  doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(148, 163, 184);
+    actions.forEach(el => el.style.visibility = '');
 
-  const symText = kpis.todaySym != null ? (kpis.todaySym*100).toFixed(1)+'%' : 'No data';
-  doc.text(`Current symmetry score: ${symText}`, margin, y); y += 14;
-  doc.text(`Sessions in past 7 days: ${kpis.sessions7}`, margin, y); y += 14;
-  doc.text(`Sessions in past 30 days: ${kpis.sessions30}`, margin, y); y += 14;
-  doc.text(`Consecutive-day streak: ${kpis.streak}`, margin, y); y += 14;
-  if (kpis.best) {
-    doc.text(`Best symmetry: ${(kpis.best.symmetry_score*100).toFixed(1)}% on ${kpis.best.date}`, margin, y);
-    y += 14;
+    const imgData = canvas.toDataURL('image/jpeg', 0.88);
+
+    // A4 page in portrait — fit the screenshot width-first, paginate vertically
+    const doc     = new jsPDF({ unit:'pt', format:'a4', orientation:'portrait' });
+    const pageW   = doc.internal.pageSize.getWidth();   // 595 pt
+    const pageH   = doc.internal.pageSize.getHeight();  // 842 pt
+    const margin  = 36;
+    const today   = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
+
+    // ── Cover header ──────────────────────────────────────────────────────
+    doc.setFillColor(26, 26, 46);
+    doc.rect(0, 0, pageW, 60, 'F');
+
+    doc.setFontSize(16); doc.setFont('helvetica','bold');
+    doc.setTextColor(167, 139, 250);
+    doc.text('Neuro-Symmetry — Progress Report', margin, 32);
+
+    doc.setFontSize(9); doc.setFont('helvetica','normal');
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Generated: ${today}  |  Patient: (de-identified)  |  Research use only`, margin, 50);
+
+    // ── Screenshot (paginated) ────────────────────────────────────────────
+    const imgW   = pageW - margin * 2;
+    const scale  = imgW / canvas.width;
+    const imgH   = canvas.height * scale;
+
+    let srcY     = 0;          // source y in CSS pixels
+    let destY    = 68;         // destination y on first page (below header)
+    const srcH   = (pageH - destY - margin) / scale;  // how many source pixels fit
+
+    while (srcY < canvas.height) {
+      const sliceH  = Math.min(srcH, canvas.height - srcY);
+      const destH   = sliceH * scale;
+
+      // Slice the canvas to a temporary canvas
+      const slice   = document.createElement('canvas');
+      slice.width   = canvas.width;
+      slice.height  = sliceH;
+      slice.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+
+      doc.addImage(slice.toDataURL('image/jpeg', 0.88), 'JPEG', margin, destY, imgW, destH);
+
+      srcY  += sliceH;
+      if (srcY < canvas.height) {
+        doc.addPage();
+        destY = margin;
+      }
+    }
+
+    // ── Footer on last page ───────────────────────────────────────────────
+    const lastY = doc.internal.pageSize.getHeight() - 18;
+    doc.setFontSize(7.5); doc.setTextColor(80, 80, 110);
+    doc.text(
+      'This report is from self-monitoring data and is NOT a clinical diagnosis. Share with your treating neurologist.',
+      margin, lastY,
+    );
+
+    doc.save(`neuro-symmetry-report-${new Date().toISOString().slice(0,10)}.pdf`);
+  } catch (err) {
+    console.error('PDF export failed', err);
+    alert('PDF export failed. See console for details.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Export PDF for Neurologist';
   }
-  if (kpis.weeklyDelta !== null) {
-    const sign = kpis.weeklyDelta >= 0 ? '+' : '';
-    doc.text(`Weekly change: ${sign}${kpis.weeklyDelta}%`, margin, y); y += 14;
-  }
-  y += 10;
-
-  // Session table
-  doc.line(margin, y, pageW-margin, y); y += 20;
-  doc.setFontSize(13); doc.setFont('helvetica','bold'); doc.setTextColor(226, 232, 240);
-  doc.text('Session History (last 30)', margin, y); y += 16;
-
-  const cols = ['Date','Classification','Symmetry','Confidence','Source'];
-  const colW = [90, 90, 80, 80, 80];
-  let xc = margin;
-  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(148, 163, 184);
-  cols.forEach((c,i) => { doc.text(c, xc, y); xc += colW[i]; });
-  y += 4;
-  doc.setLineWidth(.3); doc.line(margin, y, pageW-margin, y); y += 10;
-
-  doc.setFont('helvetica','normal'); doc.setTextColor(226, 232, 240);
-  const recent30 = [...entries].reverse().slice(0,30);
-  recent30.forEach(e => {
-    if (y > 760) { doc.addPage(); y = 50; }
-    xc = margin;
-    const row = [
-      e.date,
-      e.class || 'Normal',
-      e.symmetry_score != null ? (e.symmetry_score*100).toFixed(1)+'%' : '—',
-      e.probability != null ? (e.probability*100).toFixed(0)+'%' : '—',
-      e.source || '—',
-    ];
-    row.forEach((v,i) => { doc.text(String(v), xc, y); xc += colW[i]; });
-    y += 14;
-  });
-
-  y += 10;
-  doc.line(margin, y, pageW-margin, y); y += 20;
-
-  // Footer note
-  doc.setFontSize(9); doc.setTextColor(100, 100, 130);
-  doc.text('This report is generated from self-monitoring data and is not a clinical diagnosis.', margin, y);
-  doc.text('Please share with your treating neurologist for professional interpretation.', margin, y+12);
-
-  doc.save(`neuro-symmetry-report-${new Date().toISOString().slice(0,10)}.pdf`);
 }
 
 /* ── Main ────────────────────────────────────────────────────────────────── */
+/* Ultra Pro PDF export override: chart + care-plan focused clinic report. */
+async function exportPDF(entries, kpis) {
+  const btn = document.getElementById('btn-export');
+  btn.disabled = true;
+  btn.textContent = 'Rendering PDF...';
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'a4', orientation:'portrait' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 36;
+  const bodyW = pageW - margin * 2;
+  const today = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
+  let y = margin;
+
+  function header() {
+    doc.setFillColor(15, 15, 26);
+    doc.rect(0, 0, pageW, pageH, 'F');
+    doc.setFillColor(26, 26, 46);
+    doc.roundedRect(margin, y, bodyW, 58, 10, 10, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(17);
+    doc.setTextColor(226, 232, 240);
+    doc.text('Neuro-Symmetry Progress Report', margin + 18, y + 24);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Generated ${today} | Patient de-identified | Research use only`, margin + 18, y + 43);
+    y += 78;
+  }
+
+  function footer() {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Self-monitoring support material; not a clinical diagnosis.', margin, pageH - 18);
+  }
+
+  function pageBreakIfNeeded(requiredH) {
+    if (y + requiredH <= pageH - margin - 18) return;
+    footer();
+    doc.addPage();
+    y = margin;
+    header();
+  }
+
+  async function captureElement(el, scale = 2) {
+    return html2canvas(el, {
+      backgroundColor: '#1e1e35',
+      scale,
+      useCORS: true,
+      logging: false,
+      ignoreElements: node => node.id === 'tooltip',
+      onclone: clonedDoc => {
+        clonedDoc.querySelectorAll('.actions').forEach(a => a.style.display = 'none');
+      },
+    });
+  }
+
+  function addCanvas(canvas, label) {
+    const imgW = bodyW;
+    const imgH = canvas.height * (imgW / canvas.width);
+    pageBreakIfNeeded(imgH + 38);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(6, 182, 212);
+    doc.text(label.toUpperCase(), margin, y);
+    y += 12;
+    doc.addImage(canvas.toDataURL('image/png'), 'PNG', margin, y, imgW, imgH, undefined, 'FAST');
+    y += imgH + 24;
+  }
+
+  try {
+    header();
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184);
+    doc.text('SUMMARY', margin, y);
+    y += 12;
+
+    const cards = [
+      ['Symmetry Today', document.getElementById('kpi-sym').textContent || '-'],
+      ['Sessions 7d', document.getElementById('kpi-sessions').textContent || '0'],
+      ['Best Score', document.getElementById('kpi-best').textContent || '-'],
+      ['Streak', document.getElementById('kpi-streak').textContent || '0'],
+    ];
+    const cardW = (bodyW - 24) / 4;
+    cards.forEach(([label, value], i) => {
+      const x = margin + i * (cardW + 8);
+      doc.setFillColor(30, 30, 53);
+      doc.roundedRect(x, y, cardW, 54, 8, 8, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(label, x + 10, y + 17);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(226, 232, 240);
+      doc.text(value, x + 10, y + 39);
+    });
+    y += 78;
+
+    const chartPanel = document.querySelector('#chart-container')?.closest('.panel');
+    const carePanel = document.getElementById('care-panel');
+    const tablePanel = document.getElementById('table-wrap')?.closest('.panel');
+
+    if (chartPanel) addCanvas(await captureElement(chartPanel), 'D3 Symmetry Trend');
+    if (carePanel) addCanvas(await captureElement(carePanel), 'Personalised Care Plan');
+    if (tablePanel) addCanvas(await captureElement(tablePanel, 1.6), 'Session History');
+
+    footer();
+    doc.save(`neuro-symmetry-report-${new Date().toISOString().slice(0,10)}.pdf`);
+  } catch (err) {
+    console.error('PDF export failed', err);
+    alert('PDF export failed. See console for details.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Export PDF for Neurologist';
+  }
+}
+
 function init() {
   const entries = loadHistory();
   const kpis = computeKPIs(entries);
@@ -663,7 +802,7 @@ function init() {
 
   renderTable(entries);
 
-  document.getElementById('btn-export').onclick = () => exportPDF(entries, kpis);
+  document.getElementById('btn-export').onclick = () => exportPDF(entries, kpis).catch(console.error);
 
   document.getElementById('btn-clear').onclick = () => {
     if (confirm('Clear all stored data? This cannot be undone.')) {

@@ -218,11 +218,12 @@ class TemporalSmoother:
     def update(self, frame_pred: int) -> int:
         """
         Ingest one frame prediction.  Returns the smoothed (confirmed) label.
-        Returns 0 (Normal) during the warm-up period (window not yet full).
+        Returns the raw frame prediction during the warm-up period so early
+        pathological frames are not silently suppressed.
         """
         self._window.append(frame_pred)
         if len(self._window) < self.window_size:
-            return 0                                   # insufficient history
+            return frame_pred                          # insufficient history — pass through
 
         counts = Counter(self._window)
         for cls in [2, 1]:                             # Severe takes priority

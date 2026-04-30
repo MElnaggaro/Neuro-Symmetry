@@ -1,170 +1,170 @@
 """
-Synthetic dataset generator — feature-space droop simulation.
+Synthetic training data generator for the 50-D symmetry feature vector.
 
-Works entirely in 50-dim feature space (no images needed), so it can
-generate unlimited training samples from scratch.
-
-Label convention
-----------------
-  0 = Normal
-  1 = Mild asymmetry   (unilateral 5–15% droop)
-  2 = Severe asymmetry (unilateral 25–50% droop)
-
-Feature layout (matches backend/api/feature_extractor.py)
-----------------------------------------------------------
-  [0:40]  bilateral mirror distances
-  [40]    EAR_left
-  [41]    EAR_right
-  [42]    EAR_delta
-  [43]    brow_height_left
-  [44]    brow_height_right
-  [45]    brow_height_delta
-  [46]    mouth_y_delta
-  [47]    mouth_x_offset
-  [48]    texture_score
-  [49]    symmetry_error
+Feature layout (matches feature_extractor.py):
+  [0:40]  bilateral distances   ≥ 0  (mirror-pair euclidean distances)
+  [40]    EAR_left              ≥ 0
+  [41]    EAR_right             ≥ 0
+  [42]    EAR_delta             ≥ 0
+  [43]    brow_height_left      (signed)
+  [44]    brow_height_right     (signed)
+  [45]    brow_height_delta     ≥ 0
+  [46]    mouth_y_delta         ≥ 0
+  [47]    mouth_x_offset        ≥ 0
+  [48]    texture_score         ∈ [0, 1]
+  [49]    symmetry_error        ≥ 0  (Normal < Mild < Severe)
 """
 
 from __future__ import annotations
 
 import numpy as np
-from numpy.random import Generator
 
 
-# ── Bilateral feature group slices ────────────────────────────────────────────
-# Indices within the first 40 bilateral features (aligned to MIRROR_PAIRS order)
-_EYE_OUTLINE   = np.arange(0, 9)    # 9 pairs
-_EYE_APERTURE  = np.arange(9, 13)   # 4 pairs
-_EYEBROW       = np.arange(13, 23)  # 10 pairs
-_NOSE          = np.arange(23, 28)  # 5 pairs
-_MOUTH         = np.arange(28, 32)  # 4 pairs
-_JAW           = np.arange(32, 37)  # 5 pairs
-_FOREHEAD      = np.arange(37, 40)  # 3 pairs
+# ── Per-class statistics (tuned to match real-data distribution) ──────────────
 
-# Regions most affected by lower-motor-neuron palsy / stroke droop
-_DROOP_REGIONS = np.concatenate([_EYE_OUTLINE, _EYE_APERTURE, _MOUTH, _JAW])
-_ALPHA = 0.65
-_BETA  = 0.35
+_DIST_NORMAL_MEAN  = 0.015
+_DIST_NORMAL_STD   = 0.008
+_DIST_MILD_MEAN    = 0.055
+_DIST_MILD_STD     = 0.018
+_DIST_SEVERE_MEAN  = 0.130
+_DIST_SEVERE_STD   = 0.035
 
+_EAR_NORMAL_MEAN   = 0.28
+_EAR_NORMAL_STD    = 0.04
+_EAR_DELTA_NORMAL  = 0.01
+_EAR_DELTA_MILD    = 0.045
+_EAR_DELTA_SEVERE  = 0.110
 
-# ── Internal generators ───────────────────────────────────────────────────────
+_BROW_NORMAL_STD   = 0.02
+_BROW_DELTA_NORMAL = 0.008
+_BROW_DELTA_MILD   = 0.035
+_BROW_DELTA_SEVERE = 0.090
 
-def _base_features(rng: Generator, n: int) -> np.ndarray:
-    """
-    Generate n neutral-face feature vectors.
-    All bilateral distances are small (near-zero asymmetry).
-    """
-    f = np.empty((n, 50), dtype=np.float32)
+_TEX_NORMAL        = (0.82, 0.08)  # (mean, std) texture_score for Normal
+_TEX_MILD          = (0.68, 0.10)
+_TEX_SEVERE        = (0.50, 0.12)
 
-    # Bilateral distances: tiny symmetric noise
-    f[:, :40] = rng.normal(0.02, 0.012, (n, 40)).clip(0.0)
-
-    # EAR — typical open eye ≈ 0.28–0.35
-    ear = rng.normal(0.30, 0.025, (n, 2)).clip(0.18, 0.48)
-    f[:, 40] = ear[:, 0]           # EAR_left
-    f[:, 41] = ear[:, 1]           # EAR_right
-    f[:, 42] = np.abs(ear[:, 0] - ear[:, 1])  # EAR_delta
-
-    # Brow heights (above nose, in IPD units)
-    brow = rng.normal(0.82, 0.05, (n, 2)).clip(0.55, 1.10)
-    f[:, 43] = brow[:, 0]
-    f[:, 44] = brow[:, 1]
-    f[:, 45] = np.abs(brow[:, 0] - brow[:, 1])
-
-    # Mouth
-    f[:, 46] = rng.normal(0.02, 0.010, n).clip(0.0)   # mouth_y_delta
-    f[:, 47] = rng.normal(0.05, 0.020, n).clip(0.0)   # mouth_x_offset
-
-    # Texture
-    f[:, 48] = rng.normal(0.93, 0.035, n).clip(0.75, 1.00)
-
-    # Symmetry error (recomputed from features, consistent with extractor)
-    f[:, 49] = (_ALPHA * f[:, :40].mean(axis=1) +
-                _BETA  * (1.0 - f[:, 48])).astype(np.float32)
-    return f
+# symmetry_error = α · mean(bilateral_dists) + β · (1 - texture_score)
+_ALPHA, _BETA = 0.65, 0.35
 
 
-def _apply_droop(
-    f: np.ndarray,
-    rng: Generator,
-    droop_range: tuple[float, float],
-    ear_drop: float,
-    texture_drop: float,
-) -> np.ndarray:
-    """
-    Apply unilateral droop to a batch of neutral feature vectors in place.
-    Randomly picks left or right side to be affected.
-    """
-    n = len(f)
-
-    # How much each affected bilateral distance grows
-    droop = rng.uniform(droop_range[0], droop_range[1], (n, len(_DROOP_REGIONS)))
-    f[:, _DROOP_REGIONS] += droop
-
-    # EAR drops on the affected side
-    left_affected = rng.random(n) < 0.5
-    f[ left_affected, 40] = (f[ left_affected, 40] - ear_drop).clip(0.05)
-    f[~left_affected, 41] = (f[~left_affected, 41] - ear_drop).clip(0.05)
-    f[:, 42] = np.abs(f[:, 40] - f[:, 41])
-
-    # Texture degrades
-    f[:, 48] = (f[:, 48] - rng.uniform(0.0, texture_drop, n)).clip(0.0, 1.0)
-
-    # Recompute symmetry error
-    f[:, 49] = (_ALPHA * f[:, :40].mean(axis=1) +
-                _BETA  * (1.0 - f[:, 48])).astype(np.float32)
-    return f
+def _clip_positive(x: np.ndarray) -> np.ndarray:
+    return np.clip(x, 0.0, None).astype(np.float32)
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
-
-def generate_normal(n: int, rng: Generator) -> np.ndarray:
-    """Return n normal-class feature vectors, shape (n, 50)."""
-    return _base_features(rng, n)
+def _clip_unit(x: np.ndarray) -> np.ndarray:
+    return np.clip(x, 0.0, 1.0).astype(np.float32)
 
 
-def generate_mild(n: int, rng: Generator) -> np.ndarray:
-    """Return n mild-asymmetry feature vectors, shape (n, 50)."""
-    f = _base_features(rng, n)
-    return _apply_droop(f, rng, droop_range=(0.05, 0.18), ear_drop=0.06, texture_drop=0.12)
+def generate_normal(n: int, rng: np.random.Generator) -> np.ndarray:
+    """Generate *n* Normal-class samples. Returns (n, 50) float32 array."""
+    X = np.empty((n, 50), dtype=np.float32)
+
+    dists = _clip_positive(rng.normal(_DIST_NORMAL_MEAN, _DIST_NORMAL_STD, (n, 40)))
+    X[:, :40] = dists
+
+    ear_l = _clip_positive(rng.normal(_EAR_NORMAL_MEAN, _EAR_NORMAL_STD, n))
+    ear_r = _clip_positive(ear_l + rng.normal(0, _EAR_DELTA_NORMAL, n))
+    X[:, 40] = ear_l
+    X[:, 41] = ear_r
+    X[:, 42] = np.abs(ear_l - ear_r)
+
+    bh_l = rng.normal(0.12, _BROW_NORMAL_STD, n).astype(np.float32)
+    bh_r = (bh_l + rng.normal(0, _BROW_DELTA_NORMAL, n)).astype(np.float32)
+    X[:, 43] = bh_l
+    X[:, 44] = bh_r
+    X[:, 45] = np.abs(bh_l - bh_r)
+
+    X[:, 46] = _clip_positive(rng.normal(0.008, 0.004, n))
+    X[:, 47] = _clip_positive(rng.normal(0.003, 0.003, n))
+
+    tex = _clip_unit(rng.normal(*_TEX_NORMAL, n))
+    X[:, 48] = tex
+    X[:, 49] = (_ALPHA * dists.mean(axis=1) + _BETA * (1.0 - tex)).astype(np.float32)
+    return X
 
 
-def generate_severe(n: int, rng: Generator) -> np.ndarray:
-    """Return n severe-asymmetry feature vectors, shape (n, 50)."""
-    f = _base_features(rng, n)
-    return _apply_droop(f, rng, droop_range=(0.25, 0.52), ear_drop=0.16, texture_drop=0.32)
+def generate_mild(n: int, rng: np.random.Generator) -> np.ndarray:
+    """Generate *n* Mild-class samples. Returns (n, 50) float32 array."""
+    X = np.empty((n, 50), dtype=np.float32)
+
+    dists = _clip_positive(rng.normal(_DIST_MILD_MEAN, _DIST_MILD_STD, (n, 40)))
+    X[:, :40] = dists
+
+    ear_l = _clip_positive(rng.normal(_EAR_NORMAL_MEAN, _EAR_NORMAL_STD, n))
+    ear_r = _clip_positive(ear_l + rng.normal(0, _EAR_DELTA_MILD, n))
+    X[:, 40] = ear_l
+    X[:, 41] = ear_r
+    X[:, 42] = np.abs(ear_l - ear_r)
+
+    bh_l = rng.normal(0.12, _BROW_NORMAL_STD, n).astype(np.float32)
+    bh_r = (bh_l + rng.normal(0, _BROW_DELTA_MILD, n)).astype(np.float32)
+    X[:, 43] = bh_l
+    X[:, 44] = bh_r
+    X[:, 45] = np.abs(bh_l - bh_r)
+
+    X[:, 46] = _clip_positive(rng.normal(0.035, 0.012, n))
+    X[:, 47] = _clip_positive(rng.normal(0.018, 0.010, n))
+
+    tex = _clip_unit(rng.normal(*_TEX_MILD, n))
+    X[:, 48] = tex
+    X[:, 49] = (_ALPHA * dists.mean(axis=1) + _BETA * (1.0 - tex)).astype(np.float32)
+    return X
+
+
+def generate_severe(n: int, rng: np.random.Generator) -> np.ndarray:
+    """Generate *n* Severe-class samples. Returns (n, 50) float32 array."""
+    X = np.empty((n, 50), dtype=np.float32)
+
+    dists = _clip_positive(rng.normal(_DIST_SEVERE_MEAN, _DIST_SEVERE_STD, (n, 40)))
+    X[:, :40] = dists
+
+    ear_l = _clip_positive(rng.normal(_EAR_NORMAL_MEAN, _EAR_NORMAL_STD, n))
+    ear_r = _clip_positive(ear_l + rng.normal(0, _EAR_DELTA_SEVERE, n))
+    X[:, 40] = ear_l
+    X[:, 41] = ear_r
+    X[:, 42] = np.abs(ear_l - ear_r)
+
+    bh_l = rng.normal(0.12, _BROW_NORMAL_STD, n).astype(np.float32)
+    bh_r = (bh_l + rng.normal(0, _BROW_DELTA_SEVERE, n)).astype(np.float32)
+    X[:, 43] = bh_l
+    X[:, 44] = bh_r
+    X[:, 45] = np.abs(bh_l - bh_r)
+
+    X[:, 46] = _clip_positive(rng.normal(0.090, 0.025, n))
+    X[:, 47] = _clip_positive(rng.normal(0.045, 0.020, n))
+
+    tex = _clip_unit(rng.normal(*_TEX_SEVERE, n))
+    X[:, 48] = tex
+    X[:, 49] = (_ALPHA * dists.mean(axis=1) + _BETA * (1.0 - tex)).astype(np.float32)
+    return X
 
 
 def build_dataset(
-    n_per_class: int = 5_000,
-    seed: int = 42,
+    n_per_class: int = 15_000,
+    seed:        int = 0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Build a balanced 3-class synthetic dataset.
+    Build a balanced synthetic dataset.
 
     Returns
     -------
-    features : float32 array, shape (3*n_per_class, 50)
-    labels   : int64  array, shape (3*n_per_class,)   — 0 / 1 / 2
+    X : (3 * n_per_class, 50) float32
+    y : (3 * n_per_class,)    int64  (0=Normal, 1=Mild, 2=Severe)
     """
     rng = np.random.default_rng(seed)
-    X = np.concatenate([
-        generate_normal(n_per_class, rng),
-        generate_mild(n_per_class, rng),
-        generate_severe(n_per_class, rng),
-    ], axis=0)
-    y = np.repeat([0, 1, 2], n_per_class).astype(np.int64)
-    # Shuffle
+    X_n = generate_normal(n_per_class, rng)
+    X_m = generate_mild(n_per_class, rng)
+    X_s = generate_severe(n_per_class, rng)
+
+    X = np.concatenate([X_n, X_m, X_s], axis=0)
+    y = np.array(
+        [0] * n_per_class + [1] * n_per_class + [2] * n_per_class,
+        dtype=np.int64,
+    )
+
     perm = rng.permutation(len(y))
     return X[perm].astype(np.float32), y[perm]
 
 
-# ── CLI smoke test ─────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    X, y = build_dataset(n_per_class=1_000)
-    print(f"Dataset  : {X.shape}  labels {np.unique(y, return_counts=True)}")
-    for cls, name in enumerate(["Normal", "Mild", "Severe"]):
-        mask = y == cls
-        err = X[mask, 49]
-        print(f"  {name:8s}  symmetry_error: mean={err.mean():.3f}  std={err.std():.3f}")
+__all__ = ["generate_normal", "generate_mild", "generate_severe", "build_dataset"]

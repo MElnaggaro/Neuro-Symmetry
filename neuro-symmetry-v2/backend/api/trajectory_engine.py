@@ -1,38 +1,27 @@
 """
 Trajectory Engine — classifies symmetry score trends over time.
 
-Uses scipy.stats.linregress for linear trend detection and delta-based
-heuristics for collapse and sudden-drop patterns.
-
 States
 ------
   STABLE          → score is flat or gently improving
-  LINEAR_DECLINE  → steady negative slope (R² > 0.5, slope < −0.003 / frame)
-  SUDDEN_DROP     → baseline − min(recent 30) > 0.25
-  OSCILLATING     → high variance (std > 0.05), no clear slope
-  COLLAPSE        → rolling mean < 0.30 (sustained severe asymmetry)
+  LINEAR_DECLINE  → steady negative slope (R² > r2_thresh, slope < slope_thresh)
+  SUDDEN_DROP     → baseline − min(recent drop_window) > drop_threshold
+  OSCILLATING    → high variance (std > osc_var_thresh), no clear slope
+  COLLAPSE        → rolling mean < collapse_mean
+
+All thresholds are sourced from ``backend.core.config.TrajectorySettings``.
 """
 
 from __future__ import annotations
 
 from collections import deque
 from enum import Enum
+from typing import Optional
 
 import numpy as np
 from scipy.stats import linregress
 
-
-# ── Tuning constants ──────────────────────────────────────────────────────────
-
-WINDOW_SIZE     = 60      # rolling history length (frames)
-MIN_FRAMES      = 10      # minimum frames before non-STABLE states are reported
-DROP_THRESHOLD  = 0.25    # minimum drop magnitude to flag SUDDEN_DROP
-DROP_WINDOW     = 30      # frames over which the drop is measured
-COLLAPSE_MEAN   = 0.30    # rolling mean below this threshold → COLLAPSE
-SLOPE_THRESH    = -0.003  # per-frame slope below this → candidate LINEAR_DECLINE
-R2_THRESH       = 0.50    # minimum R² for linear decline to be confirmed
-OSC_VAR_THRESH  = 0.05    # recent-window std above this → OSCILLATING candidate
-OSC_SLOPE_ABS   = 0.001   # |slope| must be below this for OSCILLATING
+from backend.core import TrajectorySettings, get_settings
 
 
 class Trajectory(str, Enum):
@@ -47,61 +36,59 @@ class TrajectoryEngine:
     """
     Per-session trajectory classifier.
 
-    Call ``update(score)`` once per usable frame.
-    Returns the current ``Trajectory`` state.
+    Call ``update(score)`` once per usable frame; returns the current
+    ``Trajectory`` state.
     """
 
-    def __init__(self, window: int = WINDOW_SIZE) -> None:
-        self._scores: deque[float] = deque(maxlen=window)
+    def __init__(
+        self,
+        window:    Optional[int] = None,
+        settings:  Optional[TrajectorySettings] = None,
+    ) -> None:
+        cfg = settings or get_settings().trajectory
+        self._cfg     = cfg
+        self._scores: deque[float] = deque(maxlen=window if window is not None else cfg.window_size)
 
     def update(self, score: float) -> Trajectory:
-        """Ingest one symmetry score and return the current trajectory."""
         self._scores.append(score)
-        return self.classify(list(self._scores))
+        return self.classify(list(self._scores), settings=self._cfg)
 
     @staticmethod
     def classify(
-        score_window:   list[float],
-        min_frames:     int   = MIN_FRAMES,
-        drop_threshold: float = DROP_THRESHOLD,
-        drop_window:    int   = DROP_WINDOW,
-        collapse_mean:  float = COLLAPSE_MEAN,
-        slope_thresh:   float = SLOPE_THRESH,
-        r2_thresh:      float = R2_THRESH,
-        osc_var_thresh: float = OSC_VAR_THRESH,
-        osc_slope_abs:  float = OSC_SLOPE_ABS,
+        score_window: list[float],
+        *,
+        settings: Optional[TrajectorySettings] = None,
     ) -> Trajectory:
-        """
-        Classify a score window.  Exposed as a static method for unit testing
-        without instantiating a full engine.
-        """
+        """Classify a score window — pure function, exposed for unit tests."""
+        cfg = settings or get_settings().trajectory
         n = len(score_window)
-        if n < min_frames:
+        if n < cfg.min_frames:
             return Trajectory.STABLE
 
         scores = np.array(score_window, dtype=np.float64)
 
         # COLLAPSE — sustained very low mean score
-        if float(scores.mean()) < collapse_mean:
+        if float(scores.mean()) < cfg.collapse_mean:
             return Trajectory.COLLAPSE
 
         # SUDDEN_DROP — large drop in recent window vs. earlier baseline
-        if TrajectoryEngine.detect_sudden_drop(scores, drop_threshold, drop_window):
+        if TrajectoryEngine.detect_sudden_drop(scores, cfg.drop_threshold, cfg.drop_window):
             return Trajectory.SUDDEN_DROP
 
         # Linear regression over full window
         x = np.arange(n, dtype=np.float64)
         slope, _, r_value, _, _ = linregress(x, scores)
-        slope   = float(slope)
-        r_sq    = float(r_value ** 2)
+        slope = float(slope)
+        r_sq  = float(r_value ** 2)
 
         # OSCILLATING — high recent variance with no directional trend
-        recent_std = float(scores[-15:].std()) if n >= 15 else float(scores.std())
-        if recent_std > osc_var_thresh and abs(slope) < osc_slope_abs:
+        recent_window = min(n, 15)
+        recent_std = float(scores[-recent_window:].std())
+        if recent_std > cfg.osc_var_thresh and abs(slope) < cfg.osc_slope_abs:
             return Trajectory.OSCILLATING
 
         # LINEAR_DECLINE — sustained downward trend with good linear fit
-        if slope < slope_thresh and r_sq > r2_thresh:
+        if slope < cfg.slope_thresh and r_sq > cfg.r2_thresh:
             return Trajectory.LINEAR_DECLINE
 
         return Trajectory.STABLE
@@ -109,19 +96,10 @@ class TrajectoryEngine:
     @staticmethod
     def detect_sudden_drop(
         scores:    np.ndarray,
-        threshold: float = DROP_THRESHOLD,
-        window:    int   = DROP_WINDOW,
+        threshold: float,
+        window:    int,
     ) -> bool:
-        """
-        Returns True if the minimum score in the last *window* frames lies more
-        than *threshold* below the mean of all earlier frames.
-
-        Parameters
-        ----------
-        scores    : 1-D array of symmetry scores (chronological order)
-        threshold : minimum drop magnitude (default 0.25)
-        window    : number of recent frames to inspect (default 30)
-        """
+        """True if min(last *window*) lies more than *threshold* below earlier mean."""
         n = len(scores)
         if n < window:
             return False

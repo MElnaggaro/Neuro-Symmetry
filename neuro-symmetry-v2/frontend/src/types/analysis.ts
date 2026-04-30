@@ -1,9 +1,11 @@
-export type RiskLevel        = "NORMAL" | "MILD" | "HIGH_RISK" | "CRITICAL";
-export type TrajectoryState  = "STABLE" | "LINEAR_DECLINE" | "SUDDEN_DROP" | "OSCILLATING" | "COLLAPSE";
-export type QualityCode      = "OK" | "DEGRADED" | "UNRELIABLE";
-export type AffectedSide     = "LEFT" | "RIGHT" | "BILATERAL";
+// ── Domain types ──────────────────────────────────────────────────────────────
+
+export type RiskLevel         = "NORMAL" | "MILD" | "HIGH_RISK" | "CRITICAL";
+export type TrajectoryState   = "STABLE" | "LINEAR_DECLINE" | "SUDDEN_DROP" | "OSCILLATING" | "COLLAPSE";
+export type QualityCode       = "OK" | "DEGRADED" | "UNRELIABLE";
+export type AffectedSide      = "LEFT" | "RIGHT" | "BILATERAL";
 export type ConfirmationState = "NORMAL" | "PENDING" | "CONFIRMED";
-export type XAILevel         = "HIGH" | "MEDIUM" | "LOW";
+export type XAILevel          = "HIGH" | "MEDIUM" | "LOW";
 
 export interface XAIFeature {
   feature:      string;
@@ -33,11 +35,11 @@ export interface AnalysisResponse {
 }
 
 export interface CalibrateResponse {
-  type?:            "calibrate";
-  frames_recorded:  number;
-  ready:            boolean;
-  min_frames:       number;
-  message:          string;
+  type?:           "calibrate";
+  frames_recorded: number;
+  ready:           boolean;
+  min_frames:      number;
+  message:         string;
 }
 
 export interface HistoryPoint {

@@ -3,23 +3,13 @@ import {
   ReferenceLine, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import type { TrajectoryState, HistoryPoint } from "@/types/analysis";
+import { TRAJECTORY_GRAPH_COLOR } from "@/config/palette";
 
-const TRAJ_COLOR: Record<TrajectoryState, string> = {
-  STABLE:         "#10b981",
-  LINEAR_DECLINE: "#f59e0b",
-  SUDDEN_DROP:    "#ef4444",
-  COLLAPSE:       "#dc2626",
-  OSCILLATING:    "#a78bfa",
-};
+// ── Tooltip ───────────────────────────────────────────────────────────────────
 
-interface TooltipPayload { value: number }
-interface CustomTooltipProps {
-  active?:  boolean;
-  payload?: TooltipPayload[];
-  label?:   string | number;
-}
+interface TooltipProps { active?: boolean; payload?: { value: number }[]; label?: string | number }
 
-function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+function GraphTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-[rgba(10,22,40,0.95)] border border-neu-borderLight rounded-lg px-3 py-2 text-[11px] glass">
@@ -29,13 +19,15 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   );
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 interface ScoreGraphProps {
   history:    HistoryPoint[];
   trajectory: TrajectoryState;
 }
 
 export default function ScoreGraph({ history, trajectory }: ScoreGraphProps) {
-  const color  = TRAJ_COLOR[trajectory] ?? TRAJ_COLOR.STABLE;
+  const color  = TRAJECTORY_GRAPH_COLOR[trajectory];
   const gradId = `sg_${trajectory}`;
 
   return (
@@ -50,43 +42,20 @@ export default function ScoreGraph({ history, trajectory }: ScoreGraphProps) {
 
         <CartesianGrid stroke="#0d1f35" strokeDasharray="3 6" vertical={false} />
 
-        <XAxis
-          dataKey="frame"
-          tick={{ fill: "#334155", fontSize: 9 }}
-          tickLine={false}
-          axisLine={{ stroke: "#0d1f35" }}
-          interval="preserveStartEnd"
-        />
-        <YAxis
-          domain={[0, 1]}
-          ticks={[0, 0.5, 1.0]}
-          tick={{ fill: "#334155", fontSize: 9 }}
-          tickLine={false}
-          axisLine={false}
-        />
+        <XAxis dataKey="frame" tick={{ fill: "#334155", fontSize: 9 }}
+          tickLine={false} axisLine={{ stroke: "#0d1f35" }} interval="preserveStartEnd" />
+        <YAxis domain={[0, 1]} ticks={[0, 0.5, 1.0]}
+          tick={{ fill: "#334155", fontSize: 9 }} tickLine={false} axisLine={false} />
 
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={<GraphTooltip />} />
 
-        <ReferenceLine
-          y={0.75}
-          stroke="#f59e0b"
-          strokeDasharray="4 4"
-          strokeWidth={1}
-          label={{ value: "Mild", fill: "#f59e0b", fontSize: 8, position: "insideTopRight", offset: 4 }}
-        />
-        <ReferenceLine
-          y={0.55}
-          stroke="#ef4444"
-          strokeDasharray="4 4"
-          strokeWidth={1}
-          label={{ value: "Severe", fill: "#ef4444", fontSize: 8, position: "insideTopRight", offset: 4 }}
-        />
+        <ReferenceLine y={0.75} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1}
+          label={{ value: "Mild",   fill: "#f59e0b", fontSize: 8, position: "insideTopRight", offset: 4 }} />
+        <ReferenceLine y={0.55} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1}
+          label={{ value: "Severe", fill: "#ef4444", fontSize: 8, position: "insideTopRight", offset: 4 }} />
 
-        <Area
-          type="monotone"
-          dataKey="score"
-          stroke={color}
-          strokeWidth={2}
+        <Area type="monotone" dataKey="score"
+          stroke={color} strokeWidth={2}
           fill={`url(#${gradId})`}
           dot={false}
           activeDot={{ r: 4, fill: color, strokeWidth: 0 }}

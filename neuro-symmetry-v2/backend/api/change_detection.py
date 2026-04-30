@@ -2,15 +2,12 @@
 Change Detection — rolling-baseline anomaly detector.
 
 Maintains a deque of symmetry scores. After a warmup period, fires a
-ChangeEvent when the current score is more than Z_THRESHOLD standard
+ChangeEvent when the current score is more than ``z_threshold`` standard
 deviations below the rolling mean.
 
-Algorithm
----------
-  • Rolling window of size WINDOW (default 90 frames ≈ 3 s at 30 fps)
-  • Detection starts after WARMUP frames
-  • z = (score − µ) / σ  where µ, σ are computed over the window
-  • ChangeEvent fired when z < −Z_THRESHOLD
+All tuning constants (window, warmup, z_threshold) are sourced from
+``backend.core.config.ChangeDetectionSettings``.  Constructor kwargs override
+the global settings (used by tests).
 """
 
 from __future__ import annotations
@@ -21,17 +18,14 @@ from typing import Optional
 
 import numpy as np
 
-
-Z_THRESHOLD = 2.5
-WINDOW      = 90
-WARMUP      = 30
+from backend.core import ChangeDetectionSettings, get_settings
 
 
 @dataclass(frozen=True)
 class ChangeEvent:
-    score:    float   # score that triggered the event
-    baseline: float   # rolling mean at time of event
-    z_score:  float   # σ below mean (negative)
+    score:    float
+    baseline: float
+    z_score:  float
 
 
 class ChangeDetector:
@@ -44,18 +38,19 @@ class ChangeDetector:
 
     def __init__(
         self,
-        window:      int   = WINDOW,
-        warmup:      int   = WARMUP,
-        z_threshold: float = Z_THRESHOLD,
+        window:      Optional[int]   = None,
+        warmup:      Optional[int]   = None,
+        z_threshold: Optional[float] = None,
+        settings:    Optional[ChangeDetectionSettings] = None,
     ) -> None:
-        self._window      = window
-        self._warmup      = warmup
-        self._z_threshold = z_threshold
-        self._scores: deque[float] = deque(maxlen=window)
+        cfg = settings or get_settings().change
+        self._window      = window      if window      is not None else cfg.window
+        self._warmup      = warmup      if warmup      is not None else cfg.warmup
+        self._z_threshold = z_threshold if z_threshold is not None else cfg.z_threshold
+        self._scores: deque[float] = deque(maxlen=self._window)
 
     @property
     def ready(self) -> bool:
-        """True once enough frames have been collected to detect changes."""
         return len(self._scores) >= self._warmup
 
     @property
@@ -64,14 +59,24 @@ class ChangeDetector:
 
     def update(self, score: float) -> Optional[ChangeEvent]:
         """Add a symmetry score. Returns ChangeEvent if anomaly detected."""
-        self._scores.append(score)
+        # ── Prevent Z-score data leakage ────────────────────────────────
+        # Compute baseline statistics from the EXISTING history, EXCLUDING
+        # the current score.  Appending before computing would drag the
+        # mean toward the anomalous point and inflate the std, effectively
+        # suppressing the Z-score and masking genuine anomalies.
 
         if not self.ready:
+            # Still in warmup — just accumulate, no detection yet
+            self._scores.append(score)
             return None
 
+        # Baseline from history BEFORE the new observation
         arr  = np.array(self._scores, dtype=np.float64)
         mean = float(arr.mean())
         std  = float(arr.std())
+
+        # NOW append the new score to the rolling window
+        self._scores.append(score)
 
         if std < 1e-6:
             return None

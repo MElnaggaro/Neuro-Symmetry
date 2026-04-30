@@ -58,22 +58,21 @@ def _env(key: str, default, cast=str):
 
 
 try:
-    from pydantic_settings import BaseSettings
+    from pydantic_settings import BaseSettings, SettingsConfigDict
     from pydantic import Field
 
     class InferenceConfig(BaseSettings):
-        model_path:        str   = Field(env="V2_MODEL_PATH")
-        device:            str   = Field(default="cpu",  env="V2_DEVICE")
-        temperature:       Optional[float] = Field(default=None, env="V2_TEMPERATURE")
-        threshold_normal:  Optional[float] = Field(default=None, env="V2_THRESHOLD_NORMAL")
-        threshold_mild:    Optional[float] = Field(default=None, env="V2_THRESHOLD_MILD")
-        threshold_severe:  Optional[float] = Field(default=None, env="V2_THRESHOLD_SEVERE")
-        temporal_window:   int   = Field(default=10, env="V2_TEMPORAL_WINDOW")
-        required_frames:   int   = Field(default=5,  env="V2_REQUIRED_FRAMES")
-        use_v2_features:   bool  = Field(default=False, env="V2_USE_V2_FEATURES")
+        model_path:        str   = Field(json_schema_extra={"env": "V2_MODEL_PATH"})
+        device:            str   = Field(default="cpu")
+        temperature:       Optional[float] = Field(default=None)
+        threshold_normal:  Optional[float] = Field(default=None)
+        threshold_mild:    Optional[float] = Field(default=None)
+        threshold_severe:  Optional[float] = Field(default=None)
+        temporal_window:   int   = Field(default=10)
+        required_frames:   int   = Field(default=5)
+        use_v2_features:   bool  = Field(default=False)
 
-        class Config:
-            env_file = ".env"
+        model_config = SettingsConfigDict(env_prefix='v2_', env_file=".env", populate_by_name=True)
 
 except ImportError:
     @dataclass
@@ -189,7 +188,10 @@ class V2InferencePipeline:
 
     def _normalise(self, feats: np.ndarray) -> np.ndarray:
         if self._scaler_mean is not None and self._scaler_std is not None:
-            return ((feats - self._scaler_mean) / (self._scaler_std + 1e-8)).astype(np.float32)
+            # Replace zero-variance features with 1.0 to avoid division by zero.
+            # Zero std means constant during training — leave that feature unscaled.
+            safe_std = np.where(self._scaler_std == 0.0, 1.0, self._scaler_std)
+            return ((feats - self._scaler_mean) / safe_std).astype(np.float32)
         return feats.astype(np.float32)
 
     @torch.no_grad()

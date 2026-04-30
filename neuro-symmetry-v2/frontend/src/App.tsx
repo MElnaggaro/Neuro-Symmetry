@@ -1,31 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence }                            from "framer-motion";
 import { Wifi, WifiOff, RefreshCw, Target, Activity, AlertTriangle } from "lucide-react";
 
-import PredictiveTriage from "@/modules/PredictiveTriage";
-
-import { useWebSocket } from "@/hooks/useWebSocket";
-import { useCamera }    from "@/hooks/useCamera";
-
-import { Card }           from "@/components/ui/Card";
-import { SectionLabel }   from "@/components/ui/SectionLabel";
-import { StatTile }       from "@/components/ui/StatTile";
-import FaceMeshOverlay    from "@/components/video/FaceMeshOverlay";
-import HeatmapOverlay     from "@/components/video/HeatmapOverlay";
-import RiskIndicator      from "@/components/panels/RiskIndicator";
-import TrajectoryLabel    from "@/components/panels/TrajectoryLabel";
-import SymmetryGauge      from "@/components/panels/SymmetryGauge";
-import ScoreGraph         from "@/components/panels/ScoreGraph";
-import XAIBreakdown       from "@/components/panels/XAIBreakdown";
-
+import PredictiveTriage                from "@/modules/PredictiveTriage";
+import { useWebSocket }                from "@/hooks/useWebSocket";
+import { useFaceTracking }             from "@/providers/FaceTrackingProvider";
+import { useDialog }                   from "@/components/ui/DialogManager";
+import { Card }                        from "@/components/ui/Card";
+import { SectionLabel, StatTile }      from "@/components/ui";
+import { FaceMeshOverlay, HeatmapOverlay } from "@/components/video";
+import RiskIndicator                   from "@/components/panels/RiskIndicator";
+import TrajectoryLabel                 from "@/components/panels/TrajectoryLabel";
+import SymmetryGauge                   from "@/components/panels/SymmetryGauge";
+import ScoreGraph                      from "@/components/panels/ScoreGraph";
+import XAIBreakdown                    from "@/components/panels/XAIBreakdown";
+import logger                          from "@/utils/logger";
+import { clearCanvas, drawBiometricOverlay } from "@/utils/renderer";
+import { APP_CONFIG, VIDEO_CONFIG }    from "@/config";
 import type { HistoryPoint, RiskLevel, TrajectoryState } from "@/types/analysis";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const W = 640, H = 480;
-const MAX_HISTORY = 60;
-const MIN_CALIB   = 30;
 
-// ── Risk → CSS class for video border + glow ──────────────────────────────────
+const { MAX_HISTORY, MIN_CALIBRATION_FRAMES, SEND_INTERVAL_MS } = APP_CONFIG;
+const { WIDTH, HEIGHT }                                          = VIDEO_CONFIG;
+
+const NAV_LINKS = [
+  { href: "/sentinel.html", label: "Sentinel"    },
+  { href: "/mirror.html",   label: "Mirror"      },
+  { href: "/game.html",     label: "Face-Joypad" },
+  { href: "/tracker.html",  label: "Tracker"     },
+] as const;
+
 const RISK_VIDEO_CLASS: Record<RiskLevel, string> = {
   NORMAL:    "risk-border-normal",
   MILD:      "risk-border-mild",
@@ -33,212 +38,250 @@ const RISK_VIDEO_CLASS: Record<RiskLevel, string> = {
   CRITICAL:  "risk-border-critical",
 };
 
-// ── App ───────────────────────────────────────────────────────────────────────
-export default function App() {
-  const meshCanvasRef = useRef<HTMLCanvasElement | null>(null);
+const ELEVATED_RISK: ReadonlySet<RiskLevel> = new Set(["MILD", "HIGH_RISK", "CRITICAL"]);
 
-  // ── History ring-buffer ───────────────────────────────────────────────────
+// ── App ───────────────────────────────────────────────────────────────────────
+
+export default function App() {
+  // ── Providers ──────────────────────────────────────────────────────────────
+  const {
+    videoRef, meshRef,
+    status:          camStatus,
+    error:           camError,
+    trackingQuality,
+    start,
+    subscribe,
+  } = useFaceTracking();
+
+  const { openDialog, closeDialog } = useDialog();
+
+  const camReady = camStatus === "ready";
+
+  // ── Session state ──────────────────────────────────────────────────────────
   const [history,    setHistory]    = useState<HistoryPoint[]>([]);
   const [frameCount, setFrameCount] = useState(0);
-  const [calibMode,  setCalibMode]  = useState(false);
-  const [calibCount, setCalibCount] = useState(0);
-  const [calibReady, setCalibReady] = useState(false);
+  const [calibMode,      setCalibMode]      = useState(false);
+  const [calibCount,     setCalibCount]     = useState(0);
+  const [calibReady,     setCalibReady]     = useState(false);
+  const [lastGoodScore,  setLastGoodScore]  = useState<number>(0);
 
-  // ── WebSocket — destructure for stable callback references ──────────────
-  const {
-    status:       wsStatus,
-    connect,
-    sendFrame,
-    resetSession,
-    lastResult,
-    lastCalib,
-  } = useWebSocket();
+  // ── WebSocket ──────────────────────────────────────────────────────────────
+  const { status: wsStatus, connect, sendFrame, resetSession, lastResult, lastCalib } = useWebSocket();
 
-  // Sync calibration state from WS acks
+  useEffect(() => { logger.info("WebSocket", `status: ${wsStatus}`); }, [wsStatus]);
+
   useEffect(() => {
     if (!lastCalib) return;
     setCalibCount(lastCalib.frames_recorded);
     if (lastCalib.ready) { setCalibReady(true); setCalibMode(false); }
   }, [lastCalib]);
 
-  // Append each new analysis frame to history
   useEffect(() => {
-    if (!lastResult?.symmetry_score) return;
+    const s = lastResult?.symmetry_score;
+    if (s == null) return;
+    setLastGoodScore(s);
     setFrameCount((n) => n + 1);
     setHistory((h) => {
-      const next: HistoryPoint[] = [
-        ...h,
-        { frame: (h[h.length - 1]?.frame ?? 0) + 1, score: lastResult.symmetry_score! },
-      ];
+      const next: HistoryPoint[] = [...h, { frame: (h.length > 0 ? h[h.length - 1].frame : 0) + 1, score: s }];
       return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
     });
   }, [lastResult]);
 
-  // ── Camera (stable sendFrame ref so useCamera effect never re-runs) ───────
+  // ── Camera initialisation ──────────────────────────────────────────────────
+  useEffect(() => { start(); }, [start]);
+  useEffect(() => { if (camReady) connect(); }, [camReady, connect]);
+
+  // ── Frame capture → WebSocket ──────────────────────────────────────────────
+  // Throttled: capture an offscreen JPEG at most every SEND_INTERVAL_MS.
   const calibModeRef = useRef(calibMode);
   useEffect(() => { calibModeRef.current = calibMode; }, [calibMode]);
 
-  const onFrame = useCallback(
-    (b64: string) => { sendFrame(b64, calibModeRef.current); },
-    [sendFrame],
-  );
+  useEffect(() => {
+    const cap    = document.createElement("canvas");
+    cap.width    = WIDTH;
+    cap.height   = HEIGHT;
+    const capCtx = cap.getContext("2d")!;
+    let lastSend = 0;
 
-  const { videoRef, error: camError, isReady: camReady } = useCamera({
-    meshCanvasRef,
-    onFrame,
-    width:  W,
-    height: H,
-  });
+    return subscribe(() => {
+      const now = performance.now();
+      if (now - lastSend < SEND_INTERVAL_MS) return;
+      lastSend = now;
+      const vid = videoRef.current;
+      if (!vid) return;
+      capCtx.drawImage(vid, 0, 0, WIDTH, HEIGHT);
+      sendFrame(cap.toDataURL("image/jpeg", 0.7), calibModeRef.current);
+    });
+  }, [subscribe, videoRef, sendFrame]);
 
-  // Auto-connect WS once camera is ready
-  useEffect(() => { if (camReady) connect(); }, [camReady, connect]);
+  // ── Biometric HUD overlay ──────────────────────────────────────────────────
+  // Per-frame draw: called at MediaPipe's rate (~30 FPS) via subscribe().
+  useEffect(() => {
+    return subscribe((rawLandmarks) => {
+      const canvas = meshRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      clearCanvas(ctx, canvas.width, canvas.height);
+      drawBiometricOverlay(ctx, rawLandmarks, canvas.width, canvas.height);
+    });
+  }, [subscribe, meshRef]);
 
-  // ── Reset ─────────────────────────────────────────────────────────────────
+  // Clear the overlay as soon as the face is lost so stale HUD doesn't linger.
+  useEffect(() => {
+    if (trackingQuality !== "UNRELIABLE") return;
+    const canvas = meshRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (ctx) clearCanvas(ctx, canvas.width, canvas.height);
+  }, [trackingQuality, meshRef]);
+
+  // ── Reset ──────────────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
     resetSession();
     setHistory([]);
     setFrameCount(0);
+    setCalibMode(false);
     setCalibCount(0);
     setCalibReady(false);
-    setCalibMode(false);
+    logger.warn("App", "Session reset");
   }, [resetSession]);
 
-  // ── Derived display values (memoised) ─────────────────────────────────────
+  // ── Derived display values ─────────────────────────────────────────────────
   const r = lastResult;
 
-  const score       = r?.symmetry_score  ?? 0;
-  const riskLevel   = (r?.risk_level     ?? "NORMAL") as RiskLevel;
-  const trajectory  = (r?.trajectory     ?? "STABLE") as TrajectoryState;
-  const xai         = r?.xai             ?? [];
-  const alert       = r?.alert           ?? false;
-  const affected    = r?.affected_side   ?? null;
-  const onsetSec    = r?.onset_seconds   ?? null;
-  const confState   = r?.confirmation_state ?? "NORMAL";
-  const latency     = r?.latency_ms      ?? null;
-  const classLabel  = r?.class_label     ?? null;
-  const anomaly     = r?.anomaly_score   ?? null;
-  const emaScore    = r?.ema_score       ?? null;
-  const quality     = r?.quality_code    ?? null;
+  const riskLevel  = (r?.risk_level   ?? "NORMAL")  as RiskLevel;
+  const trajectory = (r?.trajectory   ?? "STABLE")  as TrajectoryState;
+  const xai        =  r?.xai            ?? [];
+  const alert      =  r?.alert          ?? false;
+  const affected   =  r?.affected_side  ?? null;
+  const onsetSec   =  r?.onset_seconds  ?? null;
+  const confState  =  r?.confirmation_state ?? "NORMAL";
+  const latency    =  r?.latency_ms     ?? null;
+  const classLabel =  r?.class_label    ?? null;
+  const anomaly    =  r?.anomaly_score  ?? null;
+  const emaScore   =  r?.ema_score      ?? null;
+  const quality    =  r?.quality_code   ?? null;
 
-  const wsOk          = wsStatus === "connected";
-  const videoRiskClass = RISK_VIDEO_CLASS[riskLevel] ?? "risk-border-normal";
+  const wsOk           = wsStatus === "connected";
+  const videoRiskClass = RISK_VIDEO_CLASS[riskLevel];
+  const isElevated     = ELEVATED_RISK.has(riskLevel);
 
-  const anomalyColor = useMemo(() => {
-    if (anomaly === null) return "#64748b";
-    return Math.abs(anomaly) > 2 ? "#f87171" : "#34d399";
-  }, [anomaly]);
+  const anomalyColor = useMemo(
+    () => anomaly === null ? "#64748b" : Math.abs(anomaly) > 2 ? "#f87171" : "#34d399",
+    [anomaly],
+  );
 
-  // ── Triage modal ──────────────────────────────────────────────────────────
+  const qualityColor = quality === "OK" ? "#34d399" : quality === "DEGRADED" ? "#f59e0b" : "#f87171";
+
+  const latencyClass = latency === null ? "" :
+    latency < 60  ? "bg-emerald-900/30 border-emerald-500/30 text-emerald-400" :
+    latency < 150 ? "bg-amber-900/30 border-amber-500/30 text-amber-400"     :
+                    "bg-red-900/30 border-red-500/30 text-red-400";
+
+  // ── Triage modal (portal) ──────────────────────────────────────────────────
   const [triageDismissed, setTriageDismissed] = useState(false);
   const prevRiskRef = useRef<RiskLevel>("NORMAL");
-  useEffect(() => {
-    if (prevRiskRef.current !== riskLevel && (riskLevel === "MILD" || riskLevel === "HIGH_RISK" || riskLevel === "CRITICAL")) {
-      setTriageDismissed(false);
-    }
-    prevRiskRef.current = riskLevel;
-  }, [riskLevel]);
-  const showTriage = !triageDismissed && (riskLevel === "MILD" || riskLevel === "HIGH_RISK" || riskLevel === "CRITICAL");
 
+  useEffect(() => {
+    if (prevRiskRef.current !== riskLevel && isElevated) setTriageDismissed(false);
+    prevRiskRef.current = riskLevel;
+  }, [riskLevel, isElevated]);
+
+  const showTriage = !triageDismissed && isElevated;
+
+  const dismissTriage = useCallback(() => {
+    setTriageDismissed(true);
+    closeDialog("triage");
+  }, [closeDialog]);
+
+  useEffect(() => {
+    if (!showTriage) {
+      closeDialog("triage");
+      return;
+    }
+
+    openDialog(
+      "triage",
+      <PredictiveTriage
+        riskLevel={riskLevel}
+        onDismiss={dismissTriage}
+      />,
+    );
+  }, [closeDialog, dismissTriage, openDialog, riskLevel, showTriage]);
+
+  useEffect(() => {
+    if (camError) logger.error("Camera", "Init failed", { error: camError });
+  }, [camError]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-screen bg-bg-base text-slate-200 font-sans overflow-hidden">
 
-      {/* ── Scanline FX ── */}
+      {/* Scanline FX */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
         <div className="absolute left-0 right-0 h-16 bg-gradient-to-b from-transparent via-accent-blue/[0.025] to-transparent animate-scan" />
       </div>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <header
-        className="relative z-10 flex items-center justify-between px-5 py-3
-                   bg-bg-surface border-b border-neu-border"
-        role="banner"
-      >
-        {/* Logo */}
+      {/* ── Header ────────────────────────────────────────────────────────── */}
+      <header className="relative z-10 flex items-center justify-between px-5 py-3 bg-bg-surface border-b border-neu-border" role="banner">
+
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-[8px] flex items-center justify-center
-                          bg-gradient-to-br from-blue-700 to-sky-500 shadow-glow-cyan shrink-0"
-               aria-hidden="true">
+          <div className="w-8 h-8 rounded-[8px] flex items-center justify-center bg-gradient-to-br from-blue-700 to-sky-500 shadow-glow-cyan shrink-0" aria-hidden="true">
             <Activity size={16} color="#bfdbfe" strokeWidth={2.5} />
           </div>
           <div>
-            <div className="text-[15px] font-extrabold tracking-wide text-slate-200 leading-tight">
-              Neuro-Symmetry
-            </div>
-            <div className="text-[9px] font-semibold tracking-[0.3em] text-accent-cyan uppercase">
-              Facial Analysis Platform v2.0
-            </div>
+            <div className="text-[15px] font-extrabold tracking-wide text-slate-200 leading-tight">Neuro-Symmetry</div>
+            <div className="text-[9px] font-semibold tracking-[0.3em] text-accent-cyan uppercase">Facial Analysis Platform v2.0</div>
           </div>
         </div>
 
-        {/* Status pills */}
         <div className="flex items-center gap-2">
           {latency !== null && (
-            <span className={`text-[10px] font-mono px-3 py-1 rounded-full border
-              ${latency < 60
-                ? "bg-emerald-900/30 border-emerald-500/30 text-emerald-400"
-                : latency < 150
-                  ? "bg-amber-900/30 border-amber-500/30 text-amber-400"
-                  : "bg-red-900/30 border-red-500/30 text-red-400"
-              }`}>
+            <span className={`text-[10px] font-mono px-3 py-1 rounded-full border ${latencyClass}`}>
               {latency.toFixed(0)} ms
             </span>
           )}
 
           <motion.span
             layout
-            className={`flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1 rounded-full border
-              ${wsOk
+            className={`flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1 rounded-full border ${
+              wsOk
                 ? "bg-emerald-900/20 border-emerald-500/30 text-emerald-400"
                 : "bg-orange-900/20 border-orange-500/30 text-orange-400"
-              }`}
+            }`}
             aria-live="polite"
             aria-label={`WebSocket status: ${wsStatus}`}
           >
             {wsOk
-              ? <Wifi size={11} strokeWidth={2.5} aria-hidden="true" />
+              ? <Wifi    size={11} strokeWidth={2.5} aria-hidden="true" />
               : <WifiOff size={11} strokeWidth={2.5} aria-hidden="true" />
             }
-            <span className={wsOk ? "animate-blink" : ""}>
-              {wsOk ? "CONNECTED" : wsStatus.toUpperCase()}
-            </span>
+            <span className={wsOk ? "animate-blink" : ""}>{wsOk ? "CONNECTED" : wsStatus.toUpperCase()}</span>
           </motion.span>
 
           {calibReady && (
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1 rounded-full
-                             bg-cyan-900/20 border border-cyan-500/30 text-cyan-400">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1 rounded-full bg-cyan-900/20 border border-cyan-500/30 text-cyan-400">
               <Target size={11} strokeWidth={2.5} aria-hidden="true" />
               BASELINE READY
             </span>
           )}
         </div>
 
-        {/* Tool navigation */}
         <nav className="hidden md:flex items-center gap-1" aria-label="Tool navigation">
-          {[
-            { href: "/sentinel.html", label: "Sentinel" },
-            { href: "/mirror.html",   label: "Mirror"   },
-            { href: "/game.html",     label: "Face-Joypad" },
-            { href: "/tracker.html",  label: "Tracker"  },
-          ].map(({ href, label }) => (
-            <a
-              key={href}
-              href={href}
-              className="px-3 py-1 rounded-lg text-[10px] font-semibold tracking-wide
-                         text-slate-500 border border-transparent
-                         hover:text-accent-cyan hover:border-neu-border transition-all"
-            >
+          {NAV_LINKS.map(({ href, label }) => (
+            <a key={href} href={href}
+               className="px-3 py-1 rounded-lg text-[10px] font-semibold tracking-wide text-slate-500 border border-transparent hover:text-accent-cyan hover:border-neu-border transition-all">
               {label}
             </a>
           ))}
         </nav>
 
-        {/* Triage alert button — shown when asymmetry detected */}
-        {(riskLevel === "MILD" || riskLevel === "HIGH_RISK" || riskLevel === "CRITICAL") && (
+        {isElevated && (
           <motion.button
-            initial={{ opacity:0, scale:0.9 }} animate={{ opacity:1, scale:1 }}
+            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
             onClick={() => setTriageDismissed(false)}
-            className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full border
-                       bg-red-900/25 border-red-500/40 text-red-400 hover:bg-red-900/40 transition-all"
+            className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full border bg-red-900/25 border-red-500/40 text-red-400 hover:bg-red-900/40 transition-all"
             aria-label="Open Predictive Triage"
           >
             <AlertTriangle size={11} aria-hidden="true" />
@@ -246,214 +289,158 @@ export default function App() {
           </motion.button>
         )}
 
-        {/* Frame counter */}
         <div className="text-[10px] font-mono text-slate-600 tabular-nums" aria-label="Frame count">
           FRAME {String(frameCount).padStart(6, "0")}
         </div>
       </header>
 
-      {/* ── Main ───────────────────────────────────────────────────────── */}
+      {/* ── Main ──────────────────────────────────────────────────────────── */}
       <main className="relative z-1 flex flex-1 gap-4 p-4 min-h-0" role="main">
 
-        {/* Left column — camera + overlays */}
+        {/* Left — camera + overlays */}
         <div className="flex flex-col gap-3 shrink-0">
+          <Card>
+            <div
+              className={`relative rounded-2xl overflow-hidden border-2 transition-all duration-500 risk-video-border ${videoRiskClass}`}
+              style={{ width: WIDTH, height: HEIGHT }}
+              role="region"
+              aria-label="Camera feed with facial analysis overlays"
+            >
+              {/* Corner fiducials */}
+              {(["tl", "tr", "bl", "br"] as const).map((pos) => (
+                <div key={pos} aria-hidden="true"
+                  className={[
+                    "absolute w-[18px] h-[18px] z-10 pointer-events-none border-accent-cyan/60",
+                    pos === "tl" ? "top-2 left-2 border-t-2 border-l-2"    : "",
+                    pos === "tr" ? "top-2 right-2 border-t-2 border-r-2"   : "",
+                    pos === "bl" ? "bottom-2 left-2 border-b-2 border-l-2" : "",
+                    pos === "br" ? "bottom-2 right-2 border-b-2 border-r-2": "",
+                  ].join(" ")}
+                />
+              ))}
 
-          {/* Video card */}
-          <div
-            className={`relative rounded-2xl overflow-hidden border-2 transition-all duration-500
-                        risk-video-border ${videoRiskClass}`}
-            style={{ width: W, height: H }}
-            role="region"
-            aria-label="Camera feed with facial analysis overlays"
-          >
-            {/* Corner fiducial marks */}
-            {(["tl","tr","bl","br"] as const).map((pos) => (
-              <div
-                key={pos}
-                aria-hidden="true"
-                className={`absolute w-[18px] h-[18px] z-10 pointer-events-none
-                  ${pos === "tl" ? "top-2 left-2 border-t-2 border-l-2" : ""}
-                  ${pos === "tr" ? "top-2 right-2 border-t-2 border-r-2" : ""}
-                  ${pos === "bl" ? "bottom-2 left-2 border-b-2 border-l-2" : ""}
-                  ${pos === "br" ? "bottom-2 right-2 border-b-2 border-r-2" : ""}
-                  border-accent-cyan/60`}
-              />
-            ))}
+              <video ref={videoRef} className="w-full h-full object-cover block"
+                style={{ transform: "scaleX(-1)" }} autoPlay playsInline muted aria-label="Live camera feed" />
 
-            {/* Live camera feed */}
-            <video
-              ref={videoRef}
-              className="w-full h-full object-cover block"
-              style={{ transform: "scaleX(-1)" }}
-              autoPlay
-              playsInline
-              muted
-              aria-label="Live camera feed"
-            />
+              <FaceMeshOverlay ref={meshRef} width={WIDTH} height={HEIGHT} />
+              <HeatmapOverlay  xai={xai} width={WIDTH} height={HEIGHT} />
 
-            {/* Canvas overlays */}
-            <FaceMeshOverlay ref={meshCanvasRef} width={W} height={H} />
-            <HeatmapOverlay  xai={xai} width={W} height={H} />
+              <AnimatePresence>
+                {camError && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="absolute inset-0 flex items-center justify-center bg-bg-base/85 text-[12px] text-red-400 text-center px-6"
+                    role="alert">
+                    {camError}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            {/* Camera / MediaPipe error banner */}
-            <AnimatePresence>
-              {camError && (
-                <motion.div
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="absolute inset-0 flex items-center justify-center
-                             bg-bg-base/85 text-[12px] text-red-400 text-center px-6"
-                  role="alert"
-                >
-                  {camError}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Trajectory badge — bottom-left */}
-            <div className="absolute bottom-3 left-3 flex flex-col gap-2 z-10">
-              <TrajectoryLabel trajectory={trajectory} />
-              {onsetSec !== null && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                  className="text-[10px] text-red-400 font-bold tracking-widest
-                             bg-red-900/75 border border-red-500/40 px-2 py-1 rounded-lg glass"
-                >
-                  ⏱ ONSET {onsetSec.toFixed(1)}s
-                </motion.div>
-              )}
-            </div>
-
-            {/* Affected side — top-right */}
-            {affected && (
-              <div className="absolute top-3 right-3 z-10 text-[9px] font-semibold tracking-[0.2em]
-                              text-accent-cyan bg-cyan-900/15 border border-accent-cyan/25
-                              px-2.5 py-1.5 rounded-lg glass">
-                SIDE: {affected}
+              {/* Trajectory + onset — bottom-left */}
+              <div className="absolute bottom-3 left-3 flex flex-col gap-2 z-10">
+                <TrajectoryLabel trajectory={trajectory} />
+                {onsetSec !== null && (
+                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                    className="text-[10px] text-red-400 font-bold tracking-widest bg-red-900/75 border border-red-500/40 px-2 py-1 rounded-lg glass">
+                    ⏱ ONSET {onsetSec.toFixed(1)}s
+                  </motion.div>
+                )}
               </div>
-            )}
 
-            {/* Confirmation state — bottom-right */}
-            <AnimatePresence>
-              {confState !== "NORMAL" && (
-                <motion.div
-                  key={confState}
-                  initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                  className={`absolute bottom-3 right-3 z-10 text-[9px] font-bold tracking-widest
-                               px-2.5 py-1.5 rounded-lg glass
-                               ${confState === "CONFIRMED"
-                                 ? "text-red-400 bg-red-900/70 border border-red-500/40"
-                                 : "text-amber-400 bg-amber-900/70 border border-amber-500/40"
-                               }`}
-                  role="status"
-                >
-                  {confState}
-                </motion.div>
+              {/* Affected side — top-right */}
+              {affected && (
+                <div className="absolute top-3 right-3 z-10 text-[9px] font-semibold tracking-[0.2em] text-accent-cyan bg-cyan-900/15 border border-accent-cyan/25 px-2.5 py-1.5 rounded-lg glass">
+                  SIDE: {affected}
+                </div>
               )}
-            </AnimatePresence>
-          </div>
+
+              {/* Confirmation state — bottom-right */}
+              <AnimatePresence>
+                {confState !== "NORMAL" && (
+                  <motion.div
+                    key={confState}
+                    initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+                    className={`absolute bottom-3 right-3 z-10 text-[9px] font-bold tracking-widest px-2.5 py-1.5 rounded-lg glass ${
+                      confState === "CONFIRMED"
+                        ? "text-red-400 bg-red-900/70 border border-red-500/40"
+                        : "text-amber-400 bg-amber-900/70 border border-amber-500/40"
+                    }`}
+                    role="status"
+                  >
+                    {confState}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </Card>
 
           {/* Stats strip */}
           <div className="flex gap-2 flex-wrap">
-            <StatTile label="CLASS"      value={classLabel}                color="#22d3ee" />
-            <StatTile label="EMA SCORE"  value={emaScore?.toFixed(3) ?? null} color="#e2e8f0" mono />
-            <StatTile label="ANOMALY Δz" value={anomaly?.toFixed(2) ?? null}  color={anomalyColor} mono />
-            <StatTile label="QUALITY"    value={quality}
-              color={quality === "OK" ? "#34d399" : quality === "DEGRADED" ? "#f59e0b" : "#f87171"} />
+            <StatTile label="CLASS"      value={classLabel}                     color="#22d3ee"    />
+            <StatTile label="EMA SCORE"  value={emaScore?.toFixed(3) ?? null}   color="#e2e8f0" mono />
+            <StatTile label="ANOMALY Δz" value={anomaly?.toFixed(2) ?? null}    color={anomalyColor} mono />
+            <StatTile label="QUALITY"    value={quality}                         color={qualityColor} />
           </div>
         </div>
 
-        {/* Right column — analysis panels */}
+        {/* Right — analysis panels */}
         <div className="flex flex-col gap-3 flex-1 min-w-0 min-h-0">
-
-          {/* Risk + gauge */}
           <Card>
             <div className="flex items-center gap-4">
-              <SymmetryGauge score={score} riskLevel={riskLevel} />
+              <SymmetryGauge score={lastGoodScore} riskLevel={riskLevel} />
               <div className="flex-1">
                 <RiskIndicator riskLevel={riskLevel} alert={alert} />
               </div>
             </div>
           </Card>
 
-          {/* Score timeline */}
           <Card>
             <SectionLabel>Symmetry Timeline — Last {MAX_HISTORY} Frames</SectionLabel>
             <ScoreGraph history={history} trajectory={trajectory} />
           </Card>
 
-          {/* XAI breakdown */}
           <Card flex>
             <SectionLabel>Feature Contributions (XAI)</SectionLabel>
             <div className="overflow-y-auto pr-1">
               <XAIBreakdown xai={xai} />
             </div>
           </Card>
-
         </div>
       </main>
 
-      {/* ── Footer controls ─────────────────────────────────────────────── */}
-      <footer
-        className="relative z-10 flex items-center gap-3 px-5 py-2.5
-                   bg-bg-surface border-t border-neu-border"
-        role="contentinfo"
-      >
+      {/* ── Footer ────────────────────────────────────────────────────────── */}
+      <footer className="relative z-10 flex items-center gap-3 px-5 py-2.5 bg-bg-surface border-t border-neu-border" role="contentinfo">
         {!wsOk && (
-          <button
-            onClick={connect}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold
-                       tracking-wide bg-gradient-to-r from-blue-800 to-sky-700 text-blue-200
-                       shadow-glow-cyan hover:brightness-110 transition-all"
-            aria-label="Connect to backend WebSocket"
-          >
-            <Wifi size={13} aria-hidden="true" />
-            CONNECT
+          <button onClick={connect}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold tracking-wide bg-gradient-to-r from-blue-800 to-sky-700 text-blue-200 shadow-glow-cyan hover:brightness-110 transition-all"
+            aria-label="Connect to backend WebSocket">
+            <Wifi size={13} aria-hidden="true" /> CONNECT
           </button>
         )}
 
         <button
           onClick={() => setCalibMode((v) => !v)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold
-                      tracking-wide border transition-all
-                      ${calibMode
-                        ? "bg-amber-900/30 border-amber-500/40 text-amber-400 hover:brightness-110"
-                        : "bg-bg-panel border-neu-border text-slate-400 hover:border-neu-borderLight"
-                      }`}
           aria-label={calibMode ? "Cancel calibration" : "Start baseline calibration"}
           aria-pressed={calibMode}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold tracking-wide border transition-all ${
+            calibMode
+              ? "bg-amber-900/30 border-amber-500/40 text-amber-400 hover:brightness-110"
+              : "bg-bg-panel border-neu-border text-slate-400 hover:border-neu-borderLight"
+          }`}
         >
           <Target size={13} aria-hidden="true" />
-          {calibMode
-            ? `CALIBRATING… ${calibCount}/${MIN_CALIB}`
-            : calibReady ? "RE-CALIBRATE" : "CALIBRATE BASELINE"}
+          {calibMode ? `CALIBRATING… ${calibCount}/${MIN_CALIBRATION_FRAMES}` : calibReady ? "RE-CALIBRATE" : "CALIBRATE BASELINE"}
         </button>
 
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold
-                     tracking-wide bg-bg-panel border border-neu-border text-red-500
-                     hover:border-red-500/40 hover:bg-red-900/15 transition-all"
-          aria-label="Reset analysis session"
-        >
-          <RefreshCw size={13} aria-hidden="true" />
-          RESET SESSION
+        <button onClick={handleReset}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold tracking-wide bg-bg-panel border border-neu-border text-red-500 hover:border-red-500/40 hover:bg-red-900/15 transition-all"
+          aria-label="Reset analysis session">
+          <RefreshCw size={13} aria-hidden="true" /> RESET SESSION
         </button>
 
         <span className="ml-auto text-[9px] text-slate-700 tracking-widest">
           NEURO-SYMMETRY INTELLIGENCE PLATFORM · RESEARCH USE ONLY
         </span>
       </footer>
-
-      {/* ── Predictive Triage Modal ──────────────────────────────────────── */}
-      <AnimatePresence>
-        {showTriage && (
-          <PredictiveTriage
-            key="triage"
-            riskLevel={riskLevel}
-            onDismiss={() => setTriageDismissed(true)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

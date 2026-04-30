@@ -229,7 +229,7 @@
   <!-- ── Game canvas area ──────────────────────────────────────────────────── -->
   <div id="game-wrap" role="main">
     <div style="position:relative;display:inline-block">
-      <canvas id="game-canvas" width="640" height="280" role="img" aria-label="FaceJoypad game canvas"></canvas>
+      <canvas id="game-canvas" width="800" height="420" role="img" aria-label="FaceJoypad game canvas"></canvas>
       <div id="gameover" aria-live="assertive" aria-atomic="true">
         <h2>SESSION COMPLETE</h2>
         <div class="go-score" id="go-score">0</div>
@@ -259,7 +259,7 @@
       <div class="sbar-title">FACE CONTROLS</div>
       <div class="ctrl-item">
         <div class="ctrl-dot" id="dot-brow" aria-hidden="true"></div>
-        <div class="ctrl-label"><strong>EYEBROW RAISE</strong><br/>Jump</div>
+        <div class="ctrl-label"><strong>EYEBROW RAISE</strong><br/>Jump · Hold 3s = 2× COMBO</div>
       </div>
       <div class="ctrl-item">
         <div class="ctrl-dot smile" id="dot-smile" aria-hidden="true"></div>
@@ -268,6 +268,17 @@
       <div class="ctrl-item">
         <div class="ctrl-dot shield" id="dot-puff" aria-hidden="true"></div>
         <div class="ctrl-label"><strong>CHEEK PUFF</strong><br/>2s shield</div>
+      </div>
+      <!-- 3-second hold combo ring -->
+      <div id="combo-badge" style="display:none;margin-top:.5rem;text-align:center" aria-live="polite" aria-label="Hold combo progress">
+        <svg width="48" height="48" viewBox="0 0 48 48" style="overflow:visible">
+          <circle cx="24" cy="24" r="18" fill="none" stroke="rgba(34,211,238,.15)" stroke-width="4"/>
+          <circle id="hold-ring" cx="24" cy="24" r="18" fill="none" stroke="#22d3ee" stroke-width="4"
+                  stroke-linecap="round"
+                  style="stroke-dasharray:113.1;stroke-dashoffset:113.1;transform:rotate(-90deg);transform-origin:24px 24px;transition:stroke-dashoffset .1s linear"/>
+          <text id="hold-label" x="24" y="29" text-anchor="middle"
+                font-size="11" font-weight="800" font-family="monospace" fill="#22d3ee">3s</text>
+        </svg>
       </div>
     </div>
 
@@ -287,6 +298,7 @@
       <div class="stat-row"><span class="stat-key">Brow raises</span>  <span class="stat-val" id="stat-brow">0</span></div>
       <div class="stat-row"><span class="stat-key">Smiles</span>       <span class="stat-val" id="stat-smile">0</span></div>
       <div class="stat-row"><span class="stat-key">Cheek puffs</span>  <span class="stat-val" id="stat-puff">0</span></div>
+      <div class="stat-row"><span class="stat-key">Combos (2×)</span>  <span class="stat-val" id="stat-combos" style="color:#f59e0b">0</span></div>
       <div class="stat-row"><span class="stat-key">Score</span>        <span class="stat-val" id="stat-score">0</span></div>
     </div>
 
@@ -301,7 +313,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1632090621/camera_utils.js" crossorigin="anonymous"></script>
 
 <script>
 "use strict";
@@ -310,39 +321,47 @@
    FACE CONTROL SYSTEM
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* MediaPipe landmark indices — image-space (not biological) */
+/* MediaPipe landmark indices — image-space ("R" = image-right = bio LEFT) */
 const LM = {
-  // Brows (image-left = user-right, image-right = user-left)
-  BROW_L_OUTER:  70, BROW_L_INNER: 107,   // image-left brow
-  BROW_R_OUTER: 300, BROW_R_INNER: 336,   // image-right brow
-  EYE_L_TOP:     33, EYE_L_BOT:   133,    // image-left eye outer points
-  EYE_R_TOP:    263, EYE_R_BOT:   362,
-  // Smile corners
-  MOUTH_L:  61,  MOUTH_R: 291,
-  MOUTH_T: 13,   MOUTH_B: 14,   // top/bottom of mouth (mouth width proxy)
-  // Cheek width
-  CHEEK_L: 234,  CHEEK_R: 454,
-  // Face height
-  NOSE_TOP: 10,  CHIN: 152,
+  R_EYE_OUTER:   33,   // image-right outer canthus — ICD reference
+  L_EYE_OUTER:  263,   // image-left  outer canthus — ICD reference
+  R_EYE_TOP:    159,   // image-right upper eyelid centre
+  L_EYE_TOP:    386,   // image-left  upper eyelid centre
+  R_BROW_OUTER:  70,   // image-right brow outer apex (bio LEFT)
+  L_BROW_OUTER: 300,   // image-left  brow outer apex (bio RIGHT)
+  MOUTH_L:       61,   // image-left  lip corner
+  MOUTH_R:      291,   // image-right lip corner
+  CHEEK_L:      234,   // image-right cheek silhouette (bio LEFT)
+  CHEEK_R:      454,   // image-left  cheek silhouette (bio RIGHT)
+  NOSE_TOP:      10,
+  CHIN:         152,
 };
 
 let trainSide = "LEFT";   // user's biological side to track
 
-/* Baseline state */
+/* ICD-normalised baseline (head-pose-invariant) */
 const baseline = {
-  browLiftL: 0, browLiftR: 0, browN: 0,
-  mouthW: 0,    mouthN: 0,
-  cheekW: 0,    cheekN: 0,
-  ready: false,
+  rBrowLift: 0, lBrowLift: 0,
+  smileW:    0, cheekW:    0,
+  n:         0, ready:     false,
 };
 const BASELINE_FRAMES = 45;
+
+/* 3-second hold combo */
+const hold = {
+  browStart:    null,
+  HOLD_MS:      3000,
+  comboActive:  false,
+  comboEnd:     0,
+  COMBO_MULT:   2,
+  COMBO_DUR_MS: 5000,
+};
 
 /* Current activation state */
 const ctrl = {
   brow:  false,
   smile: false,
   puff:  false,
-  // cooldown: don't re-fire within this many ms
   lastBrow:  0,
   lastSmile: 0,
   lastPuff:  0,
@@ -350,62 +369,115 @@ const ctrl = {
 };
 
 /* Session counters */
-const session = { brow: 0, smile: 0, puff: 0 };
+const session = { brow: 0, smile: 0, puff: 0, combos: 0 };
 
 let baselineFrames = 0;
 let lmsReady = false;
 
-/* ── Baseline update ─────────────────────────────────────────────────────── */
-function updateBaseline(L, faceH) {
-  // Brow lift = dist between brow outer and top of eye (image coords)
-  baseline.browLiftL += Math.abs(L[LM.BROW_L_OUTER].y - L[LM.EYE_L_TOP].y) / faceH;
-  baseline.browLiftR += Math.abs(L[LM.BROW_R_OUTER].y - L[LM.EYE_R_TOP].y) / faceH;
-  baseline.browN++;
+function normalizeRawLandmarks(L) {
+  const video = document.getElementById("cam-video");
+  const sx = Math.max(video.videoWidth || 1, 1);
+  const sy = Math.max(video.videoHeight || 1, 1);
+  const nose = L[1];
+  const le = L[LM.R_EYE_OUTER], re = L[LM.L_EYE_OUTER];
+  const dxEye = re.x * sx - le.x * sx;
+  const dyEye = re.y * sy - le.y * sy;
+  const ipd = Math.max(Math.hypot(dxEye, dyEye), 1e-6);
+  if (ipd < 0.01) return null;
+  const roll = Math.atan2(dyEye, dxEye);
+  const cos = Math.cos(roll);
+  const sin = Math.sin(roll);
 
-  // Mouth width
-  baseline.mouthW += Math.abs(L[LM.MOUTH_L].x - L[LM.MOUTH_R].x);
-  baseline.mouthN++;
-
-  // Cheek width
-  baseline.cheekW += Math.abs(L[LM.CHEEK_L].x - L[LM.CHEEK_R].x);
-  baseline.cheekN++;
-
-  if (baseline.browN >= BASELINE_FRAMES) baseline.ready = true;
+  return L.map((p) => {
+    const dx = p.x * sx - nose.x * sx;
+    const dy = p.y * sy - nose.y * sy;
+    // Translate to nose origin, rotate by -roll, scale by IPD.
+    return {
+      x: (dx * cos + dy * sin) / ipd,
+      y: (-dx * sin + dy * cos) / ipd,
+      z: (((p.z || 0) - (nose.z || 0)) * sx) / ipd,
+    };
+  });
 }
 
-/* ── Per-frame control computation ──────────────────────────────────────── */
-function computeControls(L, faceH, now) {
+/* ── ICD normalization helpers (matches FaceTrackingProvider math) ───────── */
+function getICD(L) {
+  const dx = L[LM.L_EYE_OUTER].x - L[LM.R_EYE_OUTER].x;
+  const dy = L[LM.L_EYE_OUTER].y - L[LM.R_EYE_OUTER].y;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+
+function getTilt(L) {
+  const dx = L[LM.L_EYE_OUTER].x - L[LM.R_EYE_OUTER].x;
+  const dy = L[LM.L_EYE_OUTER].y - L[LM.R_EYE_OUTER].y;
+  const t  = Math.atan2(dy, dx);
+  return { cosT: Math.cos(-t), sinT: Math.sin(-t) };
+}
+
+function normVert(ax, ay, bx, by, icdVal, cosT, sinT) {
+  const rx = bx - ax, ry = by - ay;
+  return (rx * sinT + ry * cosT) / icdVal;
+}
+
+function normHoriz(ax, ay, bx, by, icdVal, cosT, sinT) {
+  const rx = bx - ax, ry = by - ay;
+  return (rx * cosT - ry * sinT) / icdVal;
+}
+
+/* ── Baseline update (ICD-normalised) ───────────────────────────────────── */
+function updateBaseline(L) {
+  // Landmarks arrive already nose-centered, roll-corrected, and IPD-scaled.
+  baseline.rBrowLift += L[LM.R_EYE_TOP].y - L[LM.R_BROW_OUTER].y;
+  baseline.lBrowLift += L[LM.L_EYE_TOP].y - L[LM.L_BROW_OUTER].y;
+  baseline.smileW += Math.abs(L[LM.MOUTH_R].x - L[LM.MOUTH_L].x);
+  baseline.cheekW += Math.abs(L[LM.CHEEK_R].x - L[LM.CHEEK_L].x);
+  baseline.n++;
+  if (baseline.n >= BASELINE_FRAMES) baseline.ready = true;
+}
+
+/* ── Per-frame control computation (ICD-normalised, tilt-corrected) ──────── */
+function computeControls(L, now) {
   if (!baseline.ready) return;
+  const n = baseline.n;
 
-  const bLiftBase = baseline.browLiftL / baseline.browN;
-  const rLiftBase = baseline.browLiftR / baseline.browN;
-  const mWBase    = baseline.mouthW / baseline.mouthN;
-  const cWBase    = baseline.cheekW / baseline.cheekN;
-
-  // Brow lift: current vs baseline; track the affected (trained) side
-  const lLift = Math.abs(L[LM.BROW_L_OUTER].y - L[LM.EYE_L_TOP].y) / faceH;
-  const rLift = Math.abs(L[LM.BROW_R_OUTER].y - L[LM.EYE_R_TOP].y) / faceH;
-
-  // Biological LEFT → image-right (mirrored camera)
-  // Biological RIGHT → image-left
+  const rLift = L[LM.R_EYE_TOP].y - L[LM.R_BROW_OUTER].y;
+  const lLift = L[LM.L_EYE_TOP].y - L[LM.L_BROW_OUTER].y;
+  // "LEFT" = biological left = image-right = R_ indices
   const trackedLift = trainSide === "LEFT"  ? rLift :
                       trainSide === "RIGHT" ? lLift :
-                      Math.max(lLift, rLift);   // BOTH: max
-  const trackedBase = trainSide === "LEFT"  ? rLiftBase :
-                      trainSide === "RIGHT" ? bLiftBase :
-                      Math.max(bLiftBase, rLiftBase);
+                      Math.min(rLift, lLift);  // BOTH: require both sides
+  const trackedBase = trainSide === "LEFT"  ? baseline.rBrowLift / n :
+                      trainSide === "RIGHT" ? baseline.lBrowLift / n :
+                      Math.min(baseline.rBrowLift, baseline.lBrowLift) / n;
 
-  const browRaised = trackedLift < trackedBase * 0.70;  // brow UP = y decreases
+  // brow→eyelid gap INCREASES when brow raises → threshold: 25% above baseline
+  const browRaised = trackedLift > trackedBase * 1.25;
 
-  // Mouth width for smile
-  const mW     = Math.abs(L[LM.MOUTH_L].x - L[LM.MOUTH_R].x);
-  const smiling = mW > mWBase * 1.18;  // 18% wider than baseline
+  // 3-second hold → COMBO
+  if (browRaised) {
+    if (!hold.browStart) hold.browStart = now;
+    const elapsed = now - hold.browStart;
+    if (elapsed >= hold.HOLD_MS && !hold.comboActive) {
+      hold.comboActive = true;
+      hold.comboEnd    = now + hold.COMBO_DUR_MS;
+      hold.browStart   = null;
+      session.combos++;
+      comboBurst(player.x + player.w / 2, player.y);
+      awardScore(50);
+    }
+  } else {
+    hold.browStart = null;
+  }
+  // Expire combo
+  if (hold.comboActive && now > hold.comboEnd) hold.comboActive = false;
 
-  // Cheek puff: cheek-to-cheek width increases AND mouth width increases
-  const cW     = Math.abs(L[LM.CHEEK_L].x - L[LM.CHEEK_R].x);
-  const puffed  = cW > cWBase * 1.06 && mW > mWBase * 1.10;
+  const mW = Math.abs(L[LM.MOUTH_R].x - L[LM.MOUTH_L].x);
+  const cW = Math.abs(L[LM.CHEEK_R].x - L[LM.CHEEK_L].x);
+  const smWBase  = baseline.smileW / n;
+  const chWBase  = baseline.cheekW / n;
+  const smiling  = mW > smWBase * 1.18;
+  const puffed   = cW > chWBase * 1.06 && mW > smWBase * 1.10;
 
-  // Hysteresis: only fire if cooldown has passed
   if (browRaised && !ctrl.brow && now - ctrl.lastBrow > ctrl.COOLDOWN) {
     ctrl.brow = true; ctrl.lastBrow = now;
     session.brow++;
@@ -430,10 +502,40 @@ function computeControls(L, faceH, now) {
     ctrl.puff = false;
   }
 
-  // Update UI dots
   document.getElementById("dot-brow").classList.toggle("on", ctrl.brow);
   document.getElementById("dot-smile").classList.toggle("on", ctrl.smile);
   document.getElementById("dot-puff").classList.toggle("on", ctrl.puff);
+  updateHoldUI(now);
+}
+
+/* ── Hold progress ring UI ───────────────────────────────────────────────── */
+function updateHoldUI(now) {
+  const ring   = document.getElementById("hold-ring");
+  const label  = document.getElementById("hold-label");
+  const combo  = document.getElementById("combo-badge");
+  if (!ring) return;
+
+  const CIRC = 2 * Math.PI * 18;   // circumference of r=18 circle
+
+  if (hold.comboActive) {
+    const remaining = Math.max(0, hold.comboEnd - now);
+    const pct = remaining / hold.COMBO_DUR_MS;
+    ring.style.strokeDashoffset = ((1 - pct) * CIRC).toFixed(1);
+    ring.style.stroke = "#f59e0b";
+    label.textContent = "2×";
+    label.style.fill  = "#f59e0b";
+    combo.style.display = "block";
+  } else if (hold.browStart) {
+    const pct = Math.min(1, (now - hold.browStart) / hold.HOLD_MS);
+    ring.style.strokeDashoffset = ((1 - pct) * CIRC).toFixed(1);
+    ring.style.stroke = "#22d3ee";
+    label.textContent = pct >= 1 ? "!" : Math.ceil((1 - pct) * 3) + "s";
+    label.style.fill  = "#22d3ee";
+    combo.style.display = "block";
+  } else {
+    ring.style.strokeDashoffset = CIRC;
+    combo.style.display = "none";
+  }
 }
 
 /* ── MediaPipe ───────────────────────────────────────────────────────────── */
@@ -443,24 +545,23 @@ function onFaceResults(results) {
   ctx.clearRect(0, 0, ov.width, ov.height);
 
   if (!results.multiFaceLandmarks || !results.multiFaceLandmarks.length) return;
-  const L = results.multiFaceLandmarks[0];
+  const raw = results.multiFaceLandmarks[0];
+  const L = normalizeRawLandmarks(raw);
+  if (!L) return;
 
   // Draw dots (cyan)
   ctx.fillStyle = "rgba(34,211,238,.5)";
-  for (const pt of L) {
+  for (const pt of raw) {
     ctx.beginPath();
     ctx.arc((1 - pt.x) * ov.width, pt.y * ov.height, 1.1, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  const faceH = Math.abs(L[LM.CHIN].y - L[LM.NOSE_TOP].y);
-  if (faceH < 0.01) return;
-
   if (baselineFrames < BASELINE_FRAMES) {
-    updateBaseline(L, faceH);
+    updateBaseline(L);
     baselineFrames++;
   } else {
-    computeControls(L, faceH, performance.now());
+    computeControls(L, performance.now());
   }
   lmsReady = true;
 }
@@ -482,11 +583,22 @@ async function initCamera() {
     faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
     faceMesh.onResults(onFaceResults);
 
-    const camera = new Camera(video, {
-      onFrame: async () => { await faceMesh.send({ image: video }); },
-      width: 320, height: 240,
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: "user" },
+      audio: false,
     });
-    await camera.start();
+    video.srcObject = stream;
+    await video.play();
+
+    let processing = false;
+    requestAnimationFrame(async function cameraLoop() {
+      if (!processing && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        processing = true;
+        try { await faceMesh.send({ image: video }); }
+        finally { processing = false; }
+      }
+      requestAnimationFrame(cameraLoop);
+    });
   } catch (err) {
     const errDiv = document.getElementById("cam-error");
     errDiv.style.display = "flex";
@@ -561,7 +673,8 @@ function initGame() {
   coinTimer  = 0;
   difficulty = 1;
   lastDifficulty = 0;
-  Object.assign(session, { brow: 0, smile: 0, puff: 0 });
+  Object.assign(session, { brow: 0, smile: 0, puff: 0, combos: 0 });
+  Object.assign(hold, { browStart: null, comboActive: false, comboEnd: 0 });
   updateStatUI();
   initBg();
 }
@@ -588,6 +701,15 @@ function burst(x, y, col, n = 8) {
   }
 }
 
+function comboBurst(x, y) {
+  burst(x, y, "#f59e0b", 18);
+  burst(x, y + 8, "#22d3ee", 14);
+}
+
+function awardScore(points) {
+  score += points * (hold.comboActive ? hold.COMBO_MULT : 1);
+}
+
 /* ── Game actions triggered by face controls ─────────────────────────────── */
 function gameFireBrow() {
   if (gameState !== "playing" || !player.alive) return;
@@ -595,7 +717,7 @@ function gameFireBrow() {
     player.vy = JUMP_V;
     player.jumping = true;
     burst(player.x + player.w / 2, player.y, "#22d3ee", 6);
-    score += 2;
+    awardScore(2);
     // Adaptive difficulty
     activationEase = Math.min(10, activationEase + 1);
   }
@@ -606,13 +728,13 @@ function gameFireSmile() {
   player.boosted = true;
   player.boostEnd = performance.now() + 1500;
   burst(player.x + player.w / 2, player.y + player.h / 2, "#34d399", 10);
-  score += 5;
+  awardScore(5);
   // Collect nearby coins
   coins.forEach((c) => {
     if (!c.collected && Math.abs(c.x - player.x) < 80) {
       c.collected = true;
       burst(c.x, c.y, "#f59e0b", 5);
-      score += 10;
+      awardScore(10);
     }
   });
   activationEase = Math.min(10, activationEase + 1);
@@ -623,7 +745,7 @@ function gameFirePuff() {
   player.shielded = true;
   player.shieldEnd = performance.now() + 2000;
   burst(player.x + player.w / 2, player.y + player.h / 2, "#f59e0b", 12);
-  score += 3;
+  awardScore(3);
   activationEase = Math.min(10, activationEase + 1);
 }
 
@@ -678,8 +800,9 @@ function update(dt) {
   // Background
   bgStars.forEach((s) => { s.x -= s.spd; if (s.x < 0) s.x = GW + 2; });
 
-  // Score (distance)
-  score += spd * 0.012;
+  // Score (distance, boosted by combo multiplier)
+  const mult = hold.comboActive ? hold.COMBO_MULT : 1;
+  score += spd * 0.012 * mult;
   if (score - lastDifficulty > 500) {
     difficulty = Math.min(5, difficulty + 1);
     speed = Math.min(8, speed + 0.4);
@@ -692,7 +815,7 @@ function update(dt) {
     if (!c.collected && aabb(player.x, player.y, player.w, player.h, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2)) {
       c.collected = true;
       burst(c.x, c.y, "#f59e0b", 5);
-      score += 10;
+      awardScore(10);
     }
   });
 
@@ -831,10 +954,11 @@ function render() {
 
 /* ── Update sidebar stats ────────────────────────────────────────────────── */
 function updateStatUI() {
-  document.getElementById("stat-brow").textContent  = session.brow;
-  document.getElementById("stat-smile").textContent = session.smile;
-  document.getElementById("stat-puff").textContent  = session.puff;
-  document.getElementById("stat-score").textContent = Math.floor(score);
+  document.getElementById("stat-brow").textContent   = session.brow;
+  document.getElementById("stat-smile").textContent  = session.smile;
+  document.getElementById("stat-puff").textContent   = session.puff;
+  document.getElementById("stat-combos").textContent = session.combos;
+  document.getElementById("stat-score").textContent  = Math.floor(score);
 }
 
 /* ── Game over ───────────────────────────────────────────────────────────── */

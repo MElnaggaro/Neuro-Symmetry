@@ -18,10 +18,12 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from backend.core import get_settings
+
 router = APIRouter(prefix="/prodromal", tags=["prodromal"])
 _log = logging.getLogger("neuro_symmetry.prodromal")
 
-_assessment_log: list[dict] = []   # ring-buffer, max 500 entries
+_assessment_log: list[dict] = []   # ring-buffer; cap is settings.prodromal.history_max
 
 
 # ── Request models ────────────────────────────────────────────────────────────
@@ -68,6 +70,8 @@ class ProdromalResult(BaseModel):
 # ── Core assessment logic ─────────────────────────────────────────────────────
 
 def _assess(req: ProdromalRequest) -> ProdromalResult:
+    cfg = get_settings().prodromal
+
     # Eye-blink temporal asymmetry ──────────────────────────────────────────
     eye_asym_ms, eye_side = 0.0, "NONE"
     if req.right_eye.detected and req.left_eye.detected:
@@ -91,25 +95,25 @@ def _assess(req: ProdromalRequest) -> ProdromalResult:
     asym_ms = max(eye_asym_ms, smile_asym_ms)
     side    = eye_side if eye_asym_ms >= smile_asym_ms else smile_side
 
-    # Confidence: 0 signals → 0.40, 1 → 0.70, 2 → 1.00 ─────────────────────
+    # Confidence: 0 signals → base, +step per detected pair ────────────────
     n_signals = (
         int(req.right_eye.detected and req.left_eye.detected)
         + int(req.right_smile.detected and req.left_smile.detected)
     )
-    confidence = round(0.40 + 0.30 * n_signals, 2)
+    confidence = round(cfg.confidence_base + cfg.confidence_step * n_signals, 2)
 
-    # Alert threshold: 200 ms matches clinical prodromal detection literature ─
+    # Alert threshold from settings (default 200 ms — clinical literature) ──
     symptom_count = sum(1 for v in req.symptom_flags.values() if v)
-    if asym_ms > 200 and symptom_count >= 1:
+    if asym_ms > cfg.asym_alert_ms and symptom_count >= 1:
         alert = "RED"
-    elif asym_ms > 200:
+    elif asym_ms > cfg.asym_alert_ms:
         alert = "YELLOW"
     else:
         alert = "NONE"
 
     # Human-readable summary ────────────────────────────────────────────────
     parts: list[str] = []
-    if asym_ms > 50:
+    if asym_ms > cfg.asym_report_ms:
         parts.append(
             f"{asym_ms:.0f} ms temporal asymmetry — "
             f"{side} side shows delayed muscle response"
@@ -123,7 +127,7 @@ def _assess(req: ProdromalRequest) -> ProdromalResult:
     result = ProdromalResult(
         id            = uid,
         asymmetry_ms  = round(asym_ms, 1),
-        affected_side = side if asym_ms > 50 else "NONE",
+        affected_side = side if asym_ms > cfg.asym_report_ms else "NONE",
         alert_level   = alert,
         confidence    = confidence,
         detail        = "; ".join(parts),
@@ -132,7 +136,7 @@ def _assess(req: ProdromalRequest) -> ProdromalResult:
 
     entry = result.model_dump()
     _assessment_log.append(entry)
-    if len(_assessment_log) > 500:
+    if len(_assessment_log) > cfg.history_max:
         _assessment_log.pop(0)
 
     return result

@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.v2
+    ports:
+      - "8000:8000"
+    environment:
+      # V2_MODEL_PATH mounts the volume path inside the container
+      - V2_MODEL_PATH=/models/model_v2_calibrated.pt
+      - V2_DEVICE=cpu
+    volumes:
+      # Map the local checkpoints directory to /models in the container
+      - ./ai/checkpoints:/models:ro
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # Instruct Vite dev server where to proxy API/WS requests
+      - VITE_BACKEND_URL=http://backend:8000
+      - CHOKIDAR_USEPOLLING=true # Helps with file watching inside Docker
+    volumes:
+      # Mount the frontend directory to /app allowing hot-reloading
+      - ./frontend:/app
+      - /app/node_modules # Prevents local node_modules from overwriting container's
+    restart: unless-stopped
+    depends_on:
+      - backend
