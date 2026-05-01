@@ -4,53 +4,9 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AR Hope Mirror — Neuro-Symmetry</title>
+  <link rel="stylesheet" href="shared.css"/>
   <style>
-    :root {
-      --bg:      #0f172a;
-      --surface: #1e293b;
-      --panel:   #1a2535;
-      --cyan:    #22d3ee;
-      --txt:     #e2e8f0;
-      --muted:   #64748b;
-      --border:  #1e3a52;
-      --green:   #34d399;
-      --amber:   #f59e0b;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--txt);
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    nav {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: .7rem 1.25rem;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-    nav a {
-      color: var(--muted);
-      text-decoration: none;
-      font-size: .75rem;
-      font-weight: 600;
-      letter-spacing: .08em;
-      transition: color .15s;
-    }
-    nav a:hover { color: var(--cyan); }
-    nav .title {
-      color: var(--cyan);
-      font-size: .85rem;
-      font-weight: 800;
-      letter-spacing: .15em;
-      margin-left: auto;
-    }
-
+    /* ── Page layout ───────────────────────────────────────────────────── */
     main {
       flex: 1;
       display: flex;
@@ -60,7 +16,7 @@
       gap: 1.25rem;
     }
 
-    /* ── Video/canvas area ───────────────────────────────────────────── */
+    /* ── Video / canvas area ───────────────────────────────────────────── */
     #mirror-wrap {
       position: relative;
       width: 100%;
@@ -72,18 +28,14 @@
       border: 2px solid var(--border);
     }
     #raw-video {
-      /* hidden — only used as texture source */
       position: absolute;
       width: 1px; height: 1px;
       opacity: 0;
       pointer-events: none;
     }
-    #mirror-canvas {
-      width: 100%; height: 100%;
-      display: block;
-    }
+    #mirror-canvas { width: 100%; height: 100%; display: block; }
 
-    /* ── SVG symmetry arc overlay ────────────────────────────────────── */
+    /* ── SVG symmetry arc overlay ──────────────────────────────────────── */
     #arc-overlay {
       position: absolute;
       top: .75rem; left: 50%;
@@ -91,7 +43,7 @@
       pointer-events: none;
     }
 
-    /* ── Midline indicator ───────────────────────────────────────────── */
+    /* ── Midline indicator ─────────────────────────────────────────────── */
     #midline {
       position: absolute;
       top: 0; bottom: 0;
@@ -103,8 +55,7 @@
     #midline::before {
       content: '';
       position: absolute;
-      top: 50%;
-      left: 50%;
+      top: 50%; left: 50%;
       transform: translate(-50%,-50%);
       width: 8px; height: 8px;
       border-radius: 50%;
@@ -112,7 +63,7 @@
       box-shadow: 0 0 8px var(--cyan);
     }
 
-    /* ── Therapy mode badge ──────────────────────────────────────────── */
+    /* ── Therapy mode badge ────────────────────────────────────────────── */
     #therapy-badge {
       position: absolute;
       bottom: .75rem; left: .75rem;
@@ -129,19 +80,19 @@
     }
     #therapy-badge.active { display: block; }
 
-    /* ── Error overlay ───────────────────────────────────────────────── */
+    /* ── Error overlay ─────────────────────────────────────────────────── */
     #cam-error {
       position: absolute; inset: 0;
       display: none;
       align-items: center; justify-content: center;
       background: rgba(15,23,42,.88);
-      color: #f87171;
+      color: var(--red);
       font-size: .875rem;
       text-align: center;
       padding: 1.5rem;
     }
 
-    /* ── Controls card ───────────────────────────────────────────────── */
+    /* ── Controls card ─────────────────────────────────────────────────── */
     .controls {
       width: 100%;
       max-width: 680px;
@@ -168,17 +119,8 @@
     }
 
     /* Toggle switch */
-    .toggle-wrap {
-      display: flex;
-      align-items: center;
-      gap: .6rem;
-    }
-    .toggle {
-      position: relative;
-      width: 44px;
-      height: 24px;
-      cursor: pointer;
-    }
+    .toggle-wrap { display: flex; align-items: center; gap: .6rem; }
+    .toggle { position: relative; width: 44px; height: 24px; cursor: pointer; }
     .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
     .toggle-track {
       position: absolute; inset: 0;
@@ -199,25 +141,7 @@
     .toggle input:checked ~ .toggle-track .toggle-thumb { transform: translateX(20px); background: var(--cyan); }
     .toggle-label { font-size: .825rem; color: var(--txt); }
 
-    /* Side selector */
     .side-btns { display: flex; gap: .5rem; }
-    .side-btn {
-      padding: .4rem .9rem;
-      border-radius: .4rem;
-      font-size: .75rem;
-      font-weight: 700;
-      letter-spacing: .08em;
-      cursor: pointer;
-      border: 1px solid var(--border);
-      background: var(--panel);
-      color: var(--muted);
-      transition: all .15s;
-    }
-    .side-btn.active {
-      background: rgba(34,211,238,.15);
-      border-color: var(--cyan);
-      color: var(--cyan);
-    }
 
     /* Score display */
     #score-display {
@@ -228,23 +152,6 @@
       letter-spacing: .05em;
     }
 
-    /* ── Rationale ───────────────────────────────────────────────────── */
-    .rationale {
-      width: 100%;
-      max-width: 680px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--cyan);
-      border-radius: .5rem;
-      padding: .875rem 1rem;
-      font-size: .8rem;
-      color: var(--muted);
-      line-height: 1.55;
-    }
-    .rationale strong { color: var(--txt); }
-
-    :focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
-
     @media (max-width: 480px) {
       .ctrl-row { flex-direction: column; align-items: flex-start; }
     }
@@ -252,17 +159,17 @@
 </head>
 <body>
 
-<nav role="navigation">
+<nav class="ns-nav" role="navigation">
   <a href="/">← Main App</a>
   <a href="sentinel.html">Sentinel</a>
   <a href="game.html">FaceJoypad</a>
   <a href="tracker.html">Tracker</a>
-  <span class="title">AR HOPE MIRROR</span>
+  <span class="ns-title">AR HOPE MIRROR</span>
 </nav>
 
 <main>
 
-  <!-- ── Mirror display ──────────────────────────────────────────────────── -->
+  <!-- ── Mirror display ───────────────────────────────────────────────────── -->
   <div id="mirror-wrap" role="region" aria-label="AR mirror therapy view">
     <video id="raw-video" autoplay playsinline muted aria-hidden="true"></video>
     <canvas id="mirror-canvas" aria-label="Mirror therapy display"></canvas>
@@ -308,7 +215,7 @@
 
   </div>
 
-  <!-- ── Rationale ─────────────────────────────────────────────────────────── -->
+  <!-- ── Rationale ────────────────────────────────────────────────────────── -->
   <div class="rationale" role="complementary" aria-label="Medical information">
     <strong>Mirror Neuron Therapy:</strong> Viewing a mirrored image of the healthy
     side of the face activates mirror neuron circuits in the motor cortex, promoting
@@ -320,62 +227,37 @@
 
 </main>
 
+<script src="shared.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
 
 <script>
 "use strict";
 
-/* ── State ───────────────────────────────────────────────────────────────── */
-let therapyOn    = false;
-let affectedSide = "LEFT";     // biological: LEFT | RIGHT | AUTO
-let midlineX     = 0.5;        // normalised [0,1]; updated from landmarks
-let symmetryScore = null;       // 0–1 from backend /analyze
+/* ── State ─────────────────────────────────────────────────────────────────── */
+let therapyOn     = false;
+let affectedSide  = "LEFT";   // biological: LEFT | RIGHT | AUTO
+let midlineX      = 0.5;      // normalised [0,1]; updated from landmarks
+let symmetryScore = null;     // 0–1 from backend /analyze
 
-/* ── DOM refs ────────────────────────────────────────────────────────────── */
-const video         = document.getElementById("raw-video");
-const canvas        = document.getElementById("mirror-canvas");
-const ctx           = canvas.getContext("2d", { willReadFrequently: false });
-const midlineEl     = document.getElementById("midline");
-const therapyBadge  = document.getElementById("therapy-badge");
-const arcPath       = document.getElementById("arc-path");
-const arcLabel      = document.getElementById("arc-label");
-const scoreDisplay  = document.getElementById("score-display");
-const camError      = document.getElementById("cam-error");
-const mirrorBuffer  = document.createElement("canvas");
+/* ── DOM refs ──────────────────────────────────────────────────────────────── */
+const video        = document.getElementById("raw-video");
+const canvas       = document.getElementById("mirror-canvas");
+const ctx          = canvas.getContext("2d", { willReadFrequently: false });
+const midlineEl    = document.getElementById("midline");
+const therapyBadge = document.getElementById("therapy-badge");
+const arcPath      = document.getElementById("arc-path");
+const arcLabel     = document.getElementById("arc-label");
+const scoreDisplay = document.getElementById("score-display");
+const camError     = document.getElementById("cam-error");
+const mirrorBuffer = document.createElement("canvas");
 
-/* ── Arc arc: stroke-dasharray for a 157px-perimeter half-circle ─────────── */
+/* Arc stroke-dasharray perimeter for a half-circle of the SVG above */
 const ARC_LEN = 157;
-
-function normalizeRawLandmarks(L) {
-  const sx = Math.max(video.videoWidth || 1, 1);
-  const sy = Math.max(video.videoHeight || 1, 1);
-  const nose = L[1];
-  const le = L[33], re = L[263];
-  const dxEye = re.x * sx - le.x * sx;
-  const dyEye = re.y * sy - le.y * sy;
-  const ipd = Math.max(Math.hypot(dxEye, dyEye), 1e-6);
-  const roll = Math.atan2(dyEye, dxEye);
-  const cos = Math.cos(roll);
-  const sin = Math.sin(roll);
-
-  return L.map((p) => {
-    const dx = p.x * sx - nose.x * sx;
-    const dy = p.y * sy - nose.y * sy;
-    // Same affine transform as the React FaceTrackingProvider:
-    // translate to nose origin, rotate by -roll, then scale by IPD.
-    return {
-      x: (dx * cos + dy * sin) / ipd,
-      y: (-dx * sin + dy * cos) / ipd,
-      z: (((p.z || 0) - (nose.z || 0)) * sx) / ipd,
-    };
-  });
-}
 
 function updateArc(score) {
   const offset = ARC_LEN * (1 - Math.max(0, Math.min(1, score)));
   arcPath.setAttribute("stroke-dashoffset", offset.toFixed(1));
   arcLabel.textContent = Math.round(score * 100) + "%";
-  // Color coding
   const col = score >= 0.90 ? "#34d399" : score >= 0.70 ? "#f59e0b" : "#f87171";
   arcPath.setAttribute("stroke", col);
   arcLabel.setAttribute("fill", col);
@@ -383,70 +265,56 @@ function updateArc(score) {
   scoreDisplay.style.color = col;
 }
 
-/* ── Draw the mirror frame ───────────────────────────────────────────────── */
+/* ── Draw the mirror frame ─────────────────────────────────────────────────── */
 function drawFrame() {
   if (!video.videoWidth) return;
 
   const W = canvas.width  = canvas.offsetWidth;
   const H = canvas.height = canvas.offsetHeight;
-  const vW = video.videoWidth;
-  const vH = video.videoHeight;
 
-  // Draw raw (non-mirrored) video to canvas first
   ctx.save();
   ctx.drawImage(video, 0, 0, W, H);
   ctx.restore();
 
   if (therapyOn && affectedSide !== "AUTO") {
-    // user's biological LEFT → appears on IMAGE-RIGHT side (camera-space)
     const affectedIsImageRight = (affectedSide === "LEFT");
     const mx    = midlineX * W;
-    const BLEND = W * 0.18;   // feather zone width (18 % of canvas)
+    const BLEND = W * 0.18;
 
-    // ── Build mirrored frame in an offscreen canvas ──────────────────────
     const off    = mirrorBuffer;
     off.width    = W; off.height = H;
     const offCtx = off.getContext("2d");
 
-    // Draw the horizontally-flipped video into the offscreen canvas
     offCtx.translate(W, 0);
     offCtx.scale(-1, 1);
     offCtx.drawImage(video, 0, 0, W, H);
     offCtx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // ── Apply gradient alpha mask (destination-in) ───────────────────────
-    // The mask is opaque over the affected side, transparent over the healthy
-    // side, with a BLEND-wide feather zone at the midline.
     offCtx.globalCompositeOperation = "destination-in";
     const g = offCtx.createLinearGradient(0, 0, W, 0);
 
     if (affectedIsImageRight) {
-      // Affected = right side (x > mx)
       const a = Math.max(0, (mx - BLEND * 0.35) / W);
       const b = Math.min(1, (mx + BLEND) / W);
-      g.addColorStop(0, "rgba(0,0,0,0)");
-      g.addColorStop(a, "rgba(0,0,0,0)");
-      g.addColorStop(mx / W, "rgba(0,0,0,.45)");
-      g.addColorStop(b, "rgba(0,0,0,1)");
-      g.addColorStop(1, "rgba(0,0,0,1)");
+      g.addColorStop(0,       "rgba(0,0,0,0)");
+      g.addColorStop(a,       "rgba(0,0,0,0)");
+      g.addColorStop(mx / W,  "rgba(0,0,0,.45)");
+      g.addColorStop(b,       "rgba(0,0,0,1)");
+      g.addColorStop(1,       "rgba(0,0,0,1)");
     } else {
-      // Affected = left side (x < mx)
       const a = Math.max(0, (mx - BLEND) / W);
       const b = Math.min(1, (mx + BLEND * 0.35) / W);
-      g.addColorStop(0, "rgba(0,0,0,1)");
-      g.addColorStop(a, "rgba(0,0,0,1)");
-      g.addColorStop(mx / W, "rgba(0,0,0,.45)");
-      g.addColorStop(b, "rgba(0,0,0,0)");
-      g.addColorStop(1, "rgba(0,0,0,0)");
+      g.addColorStop(0,       "rgba(0,0,0,1)");
+      g.addColorStop(a,       "rgba(0,0,0,1)");
+      g.addColorStop(mx / W,  "rgba(0,0,0,.45)");
+      g.addColorStop(b,       "rgba(0,0,0,0)");
+      g.addColorStop(1,       "rgba(0,0,0,0)");
     }
 
     offCtx.fillStyle = g;
     offCtx.fillRect(0, 0, W, H);
-
-    // ── Composite the masked mirror over the raw frame ───────────────────
     ctx.drawImage(off, 0, 0);
 
-    // Subtle cyan seam line at the midline
     ctx.save();
     ctx.strokeStyle = "rgba(34,211,238,.30)";
     ctx.lineWidth   = 1.5;
@@ -457,49 +325,37 @@ function drawFrame() {
     ctx.restore();
   }
 
-  // Update midline CSS position
   midlineEl.style.left = (midlineX * 100).toFixed(1) + "%";
 }
 
-/* ── MediaPipe onResults ─────────────────────────────────────────────────── */
+/* ── MediaPipe onResults ───────────────────────────────────────────────────── */
 function onResults(results) {
   drawFrame();
 
   if (!results.multiFaceLandmarks || !results.multiFaceLandmarks.length) return;
-  const lms = results.multiFaceLandmarks[0];
-  const norm = normalizeRawLandmarks(lms);
+  const lms  = results.multiFaceLandmarks[0];
+  const norm = normalizeRawLandmarks(lms, video);  // shared.js
 
-  // Face midline = average x of landmark 10 (forehead) and 152 (chin)
-  // MediaPipe x is in [0,1] from left edge — we DON'T flip here because
-  // we will apply the same logic to the non-CSS-mirrored canvas.
   const rawMidX = (lms[10].x + lms[152].x) / 2;
-  // Smooth with EMA
   midlineX = 0.85 * midlineX + 0.15 * rawMidX;
 
-  // AUTO mode: determine affected side from facial symmetry asymmetry
-  if (affectedSide === "AUTO") {
-    // Use bilateral distance of mouth corners as quick proxy
+  if (affectedSide === "AUTO" && norm) {
     const mL = norm[61], mR = norm[291];
     const asymL = Math.abs(mL.y - norm[152].y);
     const asymR = Math.abs(mR.y - norm[152].y);
-    // The side closer to chin (lower mouth corner) is likely dropped = affected
-    // A dropped corner has higher .y value (lower on screen)
-    // Actually: affected side has the corner that is LOWER (higher y)
     if (Math.abs(asymL - asymR) > 0.01) {
-      // In camera-space: LEFT landmark 61 corresponds to user's RIGHT biological side
-      // If lms[61].y > lms[291].y → image-left corner is lower → user's RIGHT is affected
       affectedSide = norm[61].y > norm[291].y ? "RIGHT" : "LEFT";
     }
   }
 }
 
-/* ── Periodic backend fetch for symmetry score ───────────────────────────── */
+/* ── Periodic backend fetch for symmetry score ─────────────────────────────── */
 let _captureCanvas = document.createElement("canvas");
 _captureCanvas.width = 320; _captureCanvas.height = 240;
 
 async function fetchSymmetryScore() {
   if (!video.videoWidth) return;
-  const c = _captureCanvas;
+  const c  = _captureCanvas;
   const cx = c.getContext("2d");
   cx.drawImage(video, 0, 0, c.width, c.height);
   try {
@@ -513,26 +369,18 @@ async function fetchSymmetryScore() {
       if (d.symmetry_score != null) {
         symmetryScore = d.symmetry_score;
         updateArc(symmetryScore);
-        if (affectedSide === "AUTO" && d.affected_side) {
-          affectedSide = d.affected_side;
-        }
+        if (affectedSide === "AUTO" && d.affected_side) affectedSide = d.affected_side;
       }
     }
   } catch (_) {}
 }
 
-setInterval(fetchSymmetryScore, 2000);  // refresh score every 2s
+setInterval(fetchSymmetryScore, 2000);
 
-/* ── Camera initialisation ───────────────────────────────────────────────── */
+/* ── Camera initialisation ─────────────────────────────────────────────────── */
 async function initCamera() {
   try {
-    const faceMesh = new FaceMesh({
-      locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`,
-    });
-    faceMesh.setOptions({
-      maxNumFaces: 1, refineLandmarks: false,
-      minDetectionConfidence: 0.5, minTrackingConfidence: 0.5,
-    });
+    const faceMesh = createFaceMesh();  // shared.js
     faceMesh.onResults(onResults);
 
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -542,7 +390,6 @@ async function initCamera() {
     video.srcObject = stream;
     await video.play();
 
-    // Kick off animation loop
     let processing = false;
     requestAnimationFrame(async function loop() {
       drawFrame();
@@ -562,7 +409,7 @@ async function initCamera() {
   }
 }
 
-/* ── Controls wiring ─────────────────────────────────────────────────────── */
+/* ── Controls wiring ───────────────────────────────────────────────────────── */
 document.getElementById("therapy-toggle").addEventListener("change", (e) => {
   therapyOn = e.target.checked;
   document.getElementById("therapy-toggle-label").textContent = therapyOn ? "ON" : "OFF";
@@ -570,27 +417,14 @@ document.getElementById("therapy-toggle").addEventListener("change", (e) => {
   midlineEl.style.display = therapyOn ? "block" : "none";
 });
 
-document.querySelectorAll(".side-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".side-btn").forEach((b) => {
-      b.classList.remove("active");
-      b.setAttribute("aria-pressed", "false");
-    });
-    btn.classList.add("active");
-    btn.setAttribute("aria-pressed", "true");
-    affectedSide = btn.dataset.side;
-  });
-});
+/* Side selector — shared.js utility */
+const setActiveSide = wireSideSelector(".side-btn", (side) => { affectedSide = side; });
 
-// Preload affected side from localStorage (set by main app / sentinel)
-const storedSide = localStorage.getItem("ns_affected_side");
-if (storedSide && ["LEFT","RIGHT"].includes(storedSide)) {
+/* Restore affected side from localStorage (set by main app / sentinel) */
+const storedSide = localStorage.getItem(NS_KEYS.AFFECTED_SIDE);
+if (storedSide && ["LEFT", "RIGHT"].includes(storedSide)) {
   affectedSide = storedSide;
-  document.querySelectorAll(".side-btn").forEach((b) => {
-    const active = b.dataset.side === storedSide;
-    b.classList.toggle("active", active);
-    b.setAttribute("aria-pressed", active ? "true" : "false");
-  });
+  setActiveSide(storedSide);
 }
 
 initCamera();

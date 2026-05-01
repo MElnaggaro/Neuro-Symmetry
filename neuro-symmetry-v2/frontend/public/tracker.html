@@ -4,99 +4,107 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Progress Tracker — Neuro-Symmetry</title>
+<link rel="stylesheet" href="shared.css"/>
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
+  /* ── Tracker-specific token overrides ──────────────────────────────────────── */
   :root {
-    --bg:#0f0f1a; --surface:#1a1a2e; --card:#1e1e35;
-    --border:#2a2a4a; --accent:#7c3aed; --accent2:#06b6d4;
-    --green:#10b981; --yellow:#f59e0b; --red:#ef4444;
-    --text:#e2e8f0; --muted:#94a3b8; --radius:12px;
+    --bg:      #0f0f1a;
+    --surface: #1a1a2e;
+    --card:    #1e1e35;
+    --border:  #2a2a4a;
+    --accent:  #7c3aed;
+    --cyan:    #06b6d4;
+    --green:   #10b981;
+    --amber:   #f59e0b;
+    --red:     #ef4444;
+    --txt:     #e2e8f0;
+    --muted:   #94a3b8;
+    --radius:  12px;
   }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;
-       min-height:100vh;padding:20px}
-  header{display:flex;align-items:center;justify-content:space-between;
-         margin-bottom:28px;flex-wrap:wrap;gap:12px}
-  header h1{font-size:1.5rem;font-weight:700;background:linear-gradient(135deg,#a78bfa,#06b6d4);
-             -webkit-background-clip:text;-webkit-text-fill-color:transparent}
-  .nav-links{display:flex;gap:10px;flex-wrap:wrap}
-  .nav-links a{color:var(--muted);text-decoration:none;font-size:.85rem;
-               padding:6px 12px;border:1px solid var(--border);border-radius:8px;
-               transition:.2s}
-  .nav-links a:hover{color:var(--accent2);border-color:var(--accent2)}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;
-        margin-bottom:28px}
-  .stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
-             padding:18px;text-align:center}
-  .stat-card .val{font-size:2rem;font-weight:700;margin:8px 0 4px}
-  .stat-card .lbl{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-  .stat-card .delta{font-size:.85rem;font-weight:600}
-  .delta.pos{color:var(--green)} .delta.neg{color:var(--red)} .delta.neu{color:var(--muted)}
-  .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
-         padding:20px;margin-bottom:24px}
-  .panel h2{font-size:1rem;font-weight:600;color:var(--muted);text-transform:uppercase;
-            letter-spacing:.08em;margin-bottom:16px}
-  #chart-container{width:100%;overflow-x:auto}
-  #chart-container svg{display:block;max-width:100%}
-  .tooltip{position:absolute;background:#1e1e35;border:1px solid var(--border);
-            border-radius:8px;padding:10px 14px;font-size:.8rem;pointer-events:none;
-            opacity:0;transition:opacity .15s;z-index:100;white-space:nowrap}
-  .care-plan{line-height:1.7;color:var(--text)}
-  .care-plan .severity{font-size:1.1rem;font-weight:700;margin-bottom:10px}
-  .care-plan ul{padding-left:18px;margin:8px 0}
-  .care-plan li{margin:4px 0;font-size:.9rem}
-  .care-plan .section{margin-top:14px}
-  .care-plan .section-title{font-size:.85rem;font-weight:600;color:var(--accent2);
-                             text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
-  .weekly-banner{background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(6,182,212,.15));
-                 border:1px solid rgba(124,58,237,.3);border-radius:10px;padding:14px 20px;
-                 margin-bottom:16px;font-size:.95rem;line-height:1.5}
-  .weekly-banner strong{color:var(--accent2)}
-  .btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:.9rem;
-       font-weight:600;transition:.2s}
-  .btn-primary{background:var(--accent);color:#fff}
-  .btn-primary:hover{background:#6d28d9}
-  .btn-outline{background:transparent;color:var(--accent2);border:1px solid var(--accent2)}
-  .btn-outline:hover{background:rgba(6,182,212,.1)}
-  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.75rem;
-         font-weight:600;text-transform:uppercase}
-  .badge-none{background:rgba(16,185,129,.15);color:var(--green)}
-  .badge-yellow{background:rgba(245,158,11,.15);color:var(--yellow)}
-  .badge-red{background:rgba(239,68,68,.15);color:var(--red)}
-  .badge-normal{background:rgba(16,185,129,.15);color:var(--green)}
-  .badge-mild{background:rgba(245,158,11,.15);color:var(--yellow)}
-  .badge-high{background:rgba(239,68,68,.15);color:var(--red)}
-  .badge-critical{background:rgba(239,68,68,.25);color:#fca5a5}
-  table{width:100%;border-collapse:collapse;font-size:.85rem}
-  th{padding:8px 12px;text-align:left;color:var(--muted);font-weight:600;
-     border-bottom:1px solid var(--border);font-size:.75rem;text-transform:uppercase}
-  td{padding:9px 12px;border-bottom:1px solid rgba(42,42,74,.5)}
-  tr:last-child td{border-bottom:none}
-  tr:hover td{background:rgba(124,58,237,.05)}
-  .empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
-  .empty-state h3{font-size:1.1rem;margin-bottom:8px}
-  .empty-state p{font-size:.85rem}
-  .progress-bar{width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
-  .progress-fill{height:100%;border-radius:3px;transition:width .6s ease}
+  body { padding: 0; flex-direction: column; }
+  main { padding: 20px; }
+  header { display:flex; align-items:center; justify-content:space-between;
+           margin-bottom:28px; flex-wrap:wrap; gap:12px; }
+  header h1 { font-size:1.5rem; font-weight:700;
+              background:linear-gradient(135deg,#a78bfa,#06b6d4);
+              -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  /* ── Tracker data components ───────────────────────────────────────────────── */
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+          gap:16px; margin-bottom:28px; }
+  .stat-card { background:var(--card); border:1px solid var(--border);
+               border-radius:var(--radius); padding:18px; text-align:center; }
+  .stat-card .val { font-size:2rem; font-weight:700; margin:8px 0 4px; }
+  .stat-card .lbl { font-size:.8rem; color:var(--muted); text-transform:uppercase;
+                    letter-spacing:.06em; }
+  .stat-card .delta { font-size:.85rem; font-weight:600; }
+  .delta.pos { color:var(--green); } .delta.neg { color:var(--red); }
+  .delta.neu { color:var(--muted); }
+  .panel { background:var(--card); border:1px solid var(--border);
+           border-radius:var(--radius); padding:20px; margin-bottom:24px; }
+  .panel h2 { font-size:1rem; font-weight:600; color:var(--muted);
+              text-transform:uppercase; letter-spacing:.08em; margin-bottom:16px; }
+  #chart-container { width:100%; overflow-x:auto; }
+  #chart-container svg { display:block; max-width:100%; }
+  .tooltip { position:absolute; background:var(--card); border:1px solid var(--border);
+             border-radius:8px; padding:10px 14px; font-size:.8rem; pointer-events:none;
+             opacity:0; transition:opacity .15s; z-index:100; white-space:nowrap; }
+  .care-plan { line-height:1.7; color:var(--txt); }
+  .care-plan .severity { font-size:1.1rem; font-weight:700; margin-bottom:10px; }
+  .care-plan ul { padding-left:18px; margin:8px 0; }
+  .care-plan li { margin:4px 0; font-size:.9rem; }
+  .care-plan .section { margin-top:14px; }
+  .care-plan .section-title { font-size:.85rem; font-weight:600; color:var(--cyan);
+                               text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+  .weekly-banner { background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(6,182,212,.15));
+                   border:1px solid rgba(124,58,237,.3); border-radius:10px;
+                   padding:14px 20px; margin-bottom:16px; font-size:.95rem; line-height:1.5; }
+  .weekly-banner strong { color:var(--cyan); }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { background:#6d28d9; filter:none; }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:.75rem;
+           font-weight:600; text-transform:uppercase; }
+  .badge-none,
+  .badge-normal  { background:rgba(16,185,129,.15); color:var(--green); }
+  .badge-yellow,
+  .badge-mild    { background:rgba(245,158,11,.15);  color:var(--amber); }
+  .badge-red,
+  .badge-high    { background:rgba(239,68,68,.15);   color:var(--red); }
+  .badge-critical { background:rgba(239,68,68,.25); color:#fca5a5; }
+  table { width:100%; border-collapse:collapse; font-size:.85rem; }
+  th { padding:8px 12px; text-align:left; color:var(--muted); font-weight:600;
+       border-bottom:1px solid var(--border); font-size:.75rem; text-transform:uppercase; }
+  td { padding:9px 12px; border-bottom:1px solid rgba(42,42,74,.5); }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:rgba(124,58,237,.05); }
+  .empty-state { text-align:center; padding:48px 20px; color:var(--muted); }
+  .empty-state h3 { font-size:1.1rem; margin-bottom:8px; }
+  .empty-state p { font-size:.85rem; }
+  .progress-bar { width:100%; height:6px; background:var(--border);
+                  border-radius:3px; overflow:hidden; }
+  .progress-fill { height:100%; border-radius:3px; transition:width .6s ease; }
   @media(max-width:480px){
-    .grid{grid-template-columns:1fr 1fr}
-    th:nth-child(n+4),td:nth-child(n+4){display:none}
+    .grid { grid-template-columns:1fr 1fr; }
+    th:nth-child(n+4), td:nth-child(n+4) { display:none; }
   }
 </style>
 </head>
 <body>
 
+<nav class="ns-nav" role="navigation" aria-label="Site navigation">
+  <a href="/">← Main App</a>
+  <a href="sentinel.html">Sentinel</a>
+  <a href="mirror.html">AR Mirror</a>
+  <a href="game.html">Face-Joypad</a>
+  <span class="ns-title">PROGRESS TRACKER</span>
+</nav>
+
+<main>
 <header>
   <h1>Progress Tracker</h1>
-  <nav class="nav-links">
-    <a href="/">Dashboard</a>
-    <a href="/sentinel.html">Sentinel</a>
-    <a href="/mirror.html">Mirror</a>
-    <a href="/game.html">Face-Joypad</a>
-  </nav>
 </header>
 
 <!-- KPI row -->
@@ -821,5 +829,6 @@ window.addEventListener('resize', () => {
 
 init();
 </script>
+</main>
 </body>
 </html>

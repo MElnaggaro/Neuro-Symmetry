@@ -1,43 +1,12 @@
-import { CANVAS_CONFIG, HEATMAP_CONFIG } from "@/config/palette";
+import { HEATMAP_CONFIG } from "@/config/palette";
 import type { XAIFeature, XAILevel } from "@/types/analysis";
 
-const { LANDMARK_COLOR, SHADOW_COLOR, SHADOW_BLUR, LANDMARK_RADIUS } = CANVAS_CONFIG;
 const { ZONE_MAP, FILL, STROKE, LABEL } = HEATMAP_CONFIG;
 
 // ── Canvas helpers ────────────────────────────────────────────────────────────
 
 export function clearCanvas(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.clearRect(0, 0, w, h);
-}
-
-// ── Landmark renderer ─────────────────────────────────────────────────────────
-
-interface Landmark { x: number; y: number }
-
-/**
- * Renders 468-point face mesh landmarks on the overlay canvas.
- * Applies mirror-aware X inversion to match the CSS-flipped video element.
- */
-export function drawLandmarks(
-  ctx:       CanvasRenderingContext2D,
-  landmarks: Landmark[] | undefined,
-  w:         number,
-  h:         number,
-): void {
-  if (!landmarks?.length) return;
-
-  ctx.shadowColor = SHADOW_COLOR;
-  ctx.shadowBlur  = SHADOW_BLUR;
-  ctx.fillStyle   = LANDMARK_COLOR;
-
-  for (const { x, y } of landmarks) {
-    const mx = (1 - x) * w; // mirror X to match scaleX(-1) video transform
-    ctx.beginPath();
-    ctx.arc(mx, y * h, LANDMARK_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.shadowBlur = 0;
 }
 
 // ── Biometric HUD overlay ─────────────────────────────────────────────────────

@@ -4,60 +4,9 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
   <title>Prodromal Sentinel — Neuro-Symmetry</title>
+  <link rel="stylesheet" href="shared.css"/>
   <style>
-    /* ── Design tokens matching main app ─────────────────────────────── */
-    :root {
-      --bg:       #0f172a;
-      --surface:  #1e293b;
-      --panel:    #1a2535;
-      --cyan:     #22d3ee;
-      --blue:     #3b82f6;
-      --txt:      #e2e8f0;
-      --muted:    #64748b;
-      --border:   #1e3a52;
-      --red:      #f87171;
-      --amber:    #f59e0b;
-      --green:    #34d399;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: var(--txt);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* ── Navigation ──────────────────────────────────────────────────── */
-    nav {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: .75rem 1.25rem;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-    nav a {
-      color: var(--muted);
-      text-decoration: none;
-      font-size: .75rem;
-      font-weight: 600;
-      letter-spacing: .1em;
-      transition: color .15s;
-    }
-    nav a:hover { color: var(--cyan); }
-    nav .title {
-      color: var(--cyan);
-      font-size: .85rem;
-      font-weight: 800;
-      letter-spacing: .15em;
-      margin-left: auto;
-    }
-
-    /* ── Page layout ─────────────────────────────────────────────────── */
+    /* ── Page layout ───────────────────────────────────────────────────── */
     main {
       flex: 1;
       display: flex;
@@ -68,11 +17,11 @@
       gap: 1.5rem;
     }
 
-    /* ── Phase visibility ────────────────────────────────────────────── */
+    /* ── Phase visibility ──────────────────────────────────────────────── */
     .phase { display: none; width: 100%; max-width: 680px; }
     .phase.active { display: flex; flex-direction: column; gap: 1.25rem; }
 
-    /* ── Card ────────────────────────────────────────────────────────── */
+    /* ── Card ──────────────────────────────────────────────────────────── */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -80,89 +29,33 @@
       padding: 1.5rem;
     }
 
-    h1 {
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: var(--cyan);
-      letter-spacing: .05em;
-    }
+    h1 { font-size: 1.5rem; font-weight: 800; color: var(--cyan); letter-spacing: .05em; }
     h2 { font-size: 1.15rem; font-weight: 700; color: var(--txt); }
-    p  { font-size: .9rem;  color: var(--muted); line-height: 1.6; }
+    p  { font-size: .9rem; color: var(--muted); line-height: 1.6; }
 
-    /* ── Instructions list ───────────────────────────────────────────── */
-    .steps {
-      list-style: none;
-      counter-reset: steps;
-      display: flex;
-      flex-direction: column;
-      gap: .6rem;
-    }
+    /* ── Instructions list ─────────────────────────────────────────────── */
+    .steps { list-style: none; counter-reset: steps; display: flex; flex-direction: column; gap: .6rem; }
     .steps li {
       counter-increment: steps;
-      display: flex;
-      align-items: flex-start;
-      gap: .75rem;
-      font-size: .875rem;
-      color: var(--txt);
+      display: flex; align-items: flex-start; gap: .75rem;
+      font-size: .875rem; color: var(--txt);
     }
     .steps li::before {
       content: counter(steps);
-      min-width: 1.6rem;
-      height: 1.6rem;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: .7rem;
-      font-weight: 700;
-      color: var(--cyan);
-      flex-shrink: 0;
+      min-width: 1.6rem; height: 1.6rem;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .7rem; font-weight: 700; color: var(--cyan); flex-shrink: 0;
     }
 
-    /* ── Medical rationale banner ────────────────────────────────────── */
-    .rationale {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--cyan);
-      border-radius: .5rem;
-      padding: .875rem 1rem;
-      font-size: .8rem;
-      color: var(--muted);
-      line-height: 1.55;
-    }
-    .rationale strong { color: var(--txt); }
+    /* ── Sentinel buttons ──────────────────────────────────────────────── */
+    .btn { padding: .7rem 1.6rem; border-radius: .6rem; font-size: .825rem; letter-spacing: .08em; }
+    .btn-row { display: flex; gap: .75rem; flex-wrap: wrap; }
 
-    /* ── Buttons ─────────────────────────────────────────────────────── */
-    .btn {
-      padding: .7rem 1.6rem;
-      border-radius: .6rem;
-      font-size: .825rem;
-      font-weight: 700;
-      letter-spacing: .08em;
-      cursor: pointer;
-      border: none;
-      transition: filter .15s, transform .1s;
-    }
-    .btn:hover  { filter: brightness(1.12); }
-    .btn:active { transform: scale(.97); }
-    .btn-primary {
-      background: linear-gradient(135deg, #1d4ed8 0%, #0891b2 100%);
-      color: #bfdbfe;
-    }
-    .btn-ghost {
-      background: var(--panel);
-      color: var(--muted);
-      border: 1px solid var(--border);
-    }
-    .btn-ghost:hover { color: var(--txt); border-color: var(--cyan); }
-
-    /* ── Camera area ─────────────────────────────────────────────────── */
+    /* ── Camera area ───────────────────────────────────────────────────── */
     #cam-wrap {
       position: relative;
-      width: 100%;
-      max-width: 560px;
+      width: 100%; max-width: 560px;
       aspect-ratio: 4/3;
       border-radius: .875rem;
       overflow: hidden;
@@ -170,125 +63,78 @@
       background: #000;
       align-self: center;
     }
-    #cam-video {
-      width: 100%; height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1);
-      display: block;
-    }
-    #cam-overlay {
-      position: absolute; inset: 0;
-      pointer-events: none;
-    }
+    #cam-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+    #cam-overlay { position: absolute; inset: 0; pointer-events: none; }
 
-    /* ── Phase HUD ───────────────────────────────────────────────────── */
+    /* ── Phase HUD ─────────────────────────────────────────────────────── */
     #phase-hud {
       position: absolute;
       top: .875rem; left: .875rem; right: .875rem;
-      display: flex;
-      flex-direction: column;
-      gap: .5rem;
+      display: flex; flex-direction: column; gap: .5rem;
       pointer-events: none;
     }
     #guidance-text {
-      font-size: 1.1rem;
-      font-weight: 800;
-      letter-spacing: .1em;
+      font-size: 1.1rem; font-weight: 800; letter-spacing: .1em;
       color: var(--cyan);
       text-shadow: 0 0 12px rgba(34,211,238,.7);
       text-align: center;
     }
     #countdown-bar-wrap {
       background: rgba(30,58,82,.5);
-      border-radius: .25rem;
-      height: 6px;
-      overflow: hidden;
+      border-radius: .25rem; height: 6px; overflow: hidden;
     }
-    #countdown-bar {
-      height: 100%;
-      background: var(--cyan);
-      width: 100%;
-      transition: width .1s linear;
-    }
+    #countdown-bar { height: 100%; background: var(--cyan); width: 100%; transition: width .1s linear; }
 
-    /* ── Detection indicators ────────────────────────────────────────── */
+    /* ── Detection indicators ──────────────────────────────────────────── */
     #event-dots {
-      position: absolute;
-      bottom: .875rem;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: .875rem;
-      pointer-events: none;
+      position: absolute; bottom: .875rem; left: 50%; transform: translateX(-50%);
+      display: flex; gap: .875rem; pointer-events: none;
     }
     .ev-dot {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: .5rem;
-      padding: .3rem .7rem;
-      font-size: .7rem;
-      font-weight: 700;
-      letter-spacing: .06em;
-      color: var(--muted);
-      transition: all .2s;
+      background: var(--panel); border: 1px solid var(--border); border-radius: .5rem;
+      padding: .3rem .7rem; font-size: .7rem; font-weight: 700; letter-spacing: .06em;
+      color: var(--muted); transition: all .2s;
     }
-    .ev-dot.fired {
-      background: rgba(34,211,238,.15);
-      border-color: var(--cyan);
-      color: var(--cyan);
+    .ev-dot.fired { background: rgba(34,211,238,.15); border-color: var(--cyan); color: var(--cyan); }
+
+    /* ── Error overlay ─────────────────────────────────────────────────── */
+    #cam-error {
+      position: absolute; inset: 0;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(15,23,42,.85); color: var(--red);
+      font-size: .85rem; text-align: center; padding: 1rem;
+      border-radius: .875rem;
     }
 
-    /* ── Symptom form ────────────────────────────────────────────────── */
-    .symptom-list {
-      display: flex;
-      flex-direction: column;
-      gap: .875rem;
-    }
+    /* ── Symptom form ──────────────────────────────────────────────────── */
+    .symptom-list { display: flex; flex-direction: column; gap: .875rem; }
     .symptom-item {
-      display: flex;
-      align-items: flex-start;
-      gap: .875rem;
+      display: flex; align-items: flex-start; gap: .875rem;
       padding: .875rem 1rem;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: .6rem;
-      cursor: pointer;
-      transition: border-color .15s;
+      background: var(--panel); border: 1px solid var(--border); border-radius: .6rem;
+      cursor: pointer; transition: border-color .15s;
     }
     .symptom-item:hover { border-color: var(--cyan); }
     .symptom-item input[type="checkbox"] {
-      width: 1.1rem; height: 1.1rem;
-      accent-color: var(--cyan);
-      flex-shrink: 0;
-      margin-top: .1rem;
-      cursor: pointer;
+      width: 1.1rem; height: 1.1rem; accent-color: var(--cyan);
+      flex-shrink: 0; margin-top: .1rem; cursor: pointer;
     }
     .symptom-item label { font-size: .875rem; color: var(--txt); cursor: pointer; }
     .symptom-item .sub  { font-size: .75rem;  color: var(--muted); margin-top: .2rem; }
 
-    /* ── Results ─────────────────────────────────────────────────────── */
+    /* ── Results ───────────────────────────────────────────────────────── */
     #alert-badge {
-      text-align: center;
-      padding: 1.25rem;
-      border-radius: .875rem;
-      font-size: 1rem;
-      font-weight: 800;
-      letter-spacing: .15em;
+      text-align: center; padding: 1.25rem; border-radius: .875rem;
+      font-size: 1rem; font-weight: 800; letter-spacing: .15em;
     }
-    #alert-badge.none   { background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.3); color: var(--green); }
-    #alert-badge.yellow { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3); color: var(--amber); }
+    #alert-badge.none   { background: rgba(52,211,153,.1);  border: 1px solid rgba(52,211,153,.3);  color: var(--green); }
+    #alert-badge.yellow { background: rgba(245,158,11,.1);  border: 1px solid rgba(245,158,11,.3);  color: var(--amber); }
     #alert-badge.red    { background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.4); color: var(--red); }
 
-    /* ── Timing visualisation ────────────────────────────────────────── */
-    #timing-vis {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: .875rem;
-    }
+    /* ── Timing visualisation ──────────────────────────────────────────── */
+    #timing-vis { display: grid; grid-template-columns: 1fr 1fr; gap: .875rem; }
     .timing-col {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: .75rem;
+      background: var(--panel); border: 1px solid var(--border); border-radius: .75rem;
       padding: .875rem 1rem;
     }
     .timing-col h3 { font-size: .75rem; color: var(--muted); font-weight: 600; letter-spacing: .1em; margin-bottom: .5rem; }
@@ -297,43 +143,19 @@
     .timing-val.slow { color: var(--red); }
     .timing-val.na   { color: var(--muted); font-size: 1rem; }
 
-    /* ── Timeline bar visualisation ──────────────────────────────────── */
+    /* ── Timeline bar ──────────────────────────────────────────────────── */
     #timeline-wrap {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: .75rem;
-      padding: 1rem;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: .75rem; padding: 1rem;
     }
     #timeline-wrap h3 { font-size: .75rem; color: var(--muted); font-weight: 600; letter-spacing: .1em; margin-bottom: .875rem; }
     #timeline-canvas  { width: 100%; display: block; }
 
-    /* ── Detail + action ─────────────────────────────────────────────── */
+    /* ── Detail text ───────────────────────────────────────────────────── */
     #detail-text {
-      font-size: .85rem;
-      color: var(--muted);
-      line-height: 1.6;
+      font-size: .85rem; color: var(--muted); line-height: 1.6;
       padding: .875rem 1rem;
-      background: var(--panel);
-      border-radius: .6rem;
-      border: 1px solid var(--border);
-    }
-
-    .btn-row { display: flex; gap: .75rem; flex-wrap: wrap; }
-
-    /* ── Accessibility: focus ring ───────────────────────────────────── */
-    :focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
-
-    /* ── Error overlay ───────────────────────────────────────────────── */
-    #cam-error {
-      position: absolute; inset: 0;
-      display: none;
-      align-items: center; justify-content: center;
-      background: rgba(15,23,42,.85);
-      color: var(--red);
-      font-size: .85rem;
-      text-align: center;
-      padding: 1rem;
-      border-radius: .875rem;
+      background: var(--panel); border-radius: .6rem; border: 1px solid var(--border);
     }
 
     @media (max-width: 480px) {
@@ -344,17 +166,17 @@
 </head>
 <body>
 
-<nav role="navigation" aria-label="Site navigation">
+<nav class="ns-nav" role="navigation" aria-label="Site navigation">
   <a href="/" aria-label="Back to main application">← Main App</a>
   <a href="mirror.html">AR Mirror</a>
   <a href="game.html">FaceJoypad</a>
   <a href="tracker.html">Tracker</a>
-  <span class="title" aria-label="Neuro-Symmetry Prodromal Sentinel">NEURO-SYMMETRY · PRODROMAL SENTINEL</span>
+  <span class="ns-title" aria-label="Neuro-Symmetry Prodromal Sentinel">PRODROMAL SENTINEL</span>
 </nav>
 
 <main>
 
-  <!-- ══ PHASE: IDLE ══════════════════════════════════════════════════════ -->
+  <!-- ══ PHASE: IDLE ════════════════════════════════════════════════════════ -->
   <div id="phase-idle" class="phase active" role="region" aria-label="Assessment introduction">
 
     <div class="card">
@@ -365,7 +187,7 @@
       </p>
     </div>
 
-    <div class="card rationale">
+    <div class="card rationale" style="max-width:680px">
       <strong>Why this matters:</strong> Bell's Palsy onset is often preceded by
       subtle temporal asymmetry in eye closure and smile initiation, sometimes
       48–72 hours before visible drooping. Combined with ipsilateral mastoid pain,
@@ -390,7 +212,7 @@
     </button>
   </div>
 
-  <!-- ══ PHASE: CAMERA (setup → blink → smile) ════════════════════════════ -->
+  <!-- ══ PHASE: CAMERA ══════════════════════════════════════════════════════ -->
   <div id="phase-camera" class="phase" role="region" aria-label="Camera assessment">
 
     <div id="cam-wrap">
@@ -416,7 +238,7 @@
 
   </div>
 
-  <!-- ══ PHASE: SYMPTOMS ══════════════════════════════════════════════════ -->
+  <!-- ══ PHASE: SYMPTOMS ════════════════════════════════════════════════════ -->
   <div id="phase-symptoms" class="phase" role="region" aria-label="Symptom questionnaire">
 
     <div class="card">
@@ -428,7 +250,6 @@
       </p>
 
       <div class="symptom-list" role="group" aria-label="Symptom checkboxes">
-
         <div class="symptom-item">
           <input type="checkbox" id="cb-mastoid" name="mastoid_pain" aria-describedby="desc-mastoid"/>
           <div>
@@ -436,7 +257,6 @@
             <div class="sub" id="desc-mastoid">Mastoid region tenderness — first symptom in ~60% of Bell's Palsy cases</div>
           </div>
         </div>
-
         <div class="symptom-item">
           <input type="checkbox" id="cb-hyper" name="hyperacusis" aria-describedby="desc-hyper"/>
           <div>
@@ -444,7 +264,6 @@
             <div class="sub" id="desc-hyper">Hyperacusis from stapedius muscle involvement (CN VII branch)</div>
           </div>
         </div>
-
         <div class="symptom-item">
           <input type="checkbox" id="cb-taste" name="taste_change" aria-describedby="desc-taste"/>
           <div>
@@ -452,37 +271,22 @@
             <div class="sub" id="desc-taste">Chorda tympani involvement — taste fibres run within the facial nerve</div>
           </div>
         </div>
-
       </div>
     </div>
 
-    <button class="btn btn-primary" id="submit-symptoms-btn">
-      Complete Assessment
-    </button>
+    <button class="btn btn-primary" id="submit-symptoms-btn">Complete Assessment</button>
   </div>
 
-  <!-- ══ PHASE: RESULTS ════════════════════════════════════════════════════ -->
+  <!-- ══ PHASE: RESULTS ═════════════════════════════════════════════════════ -->
   <div id="phase-results" class="phase" role="region" aria-label="Assessment results">
 
     <div id="alert-badge" role="status" aria-live="assertive"></div>
 
     <div id="timing-vis" aria-label="Timing comparison">
-      <div class="timing-col">
-        <h3>RIGHT EYE BLINK</h3>
-        <div class="timing-val na" id="rv-r-blink">—</div>
-      </div>
-      <div class="timing-col">
-        <h3>LEFT EYE BLINK</h3>
-        <div class="timing-val na" id="rv-l-blink">—</div>
-      </div>
-      <div class="timing-col">
-        <h3>RIGHT SMILE</h3>
-        <div class="timing-val na" id="rv-r-smile">—</div>
-      </div>
-      <div class="timing-col">
-        <h3>LEFT SMILE</h3>
-        <div class="timing-val na" id="rv-l-smile">—</div>
-      </div>
+      <div class="timing-col"><h3>RIGHT EYE BLINK</h3><div class="timing-val na" id="rv-r-blink">—</div></div>
+      <div class="timing-col"><h3>LEFT EYE BLINK</h3> <div class="timing-val na" id="rv-l-blink">—</div></div>
+      <div class="timing-col"><h3>RIGHT SMILE</h3>    <div class="timing-val na" id="rv-r-smile">—</div></div>
+      <div class="timing-col"><h3>LEFT SMILE</h3>     <div class="timing-val na" id="rv-l-smile">—</div></div>
     </div>
 
     <div id="timeline-wrap">
@@ -502,117 +306,60 @@
 
 </main>
 
-<!-- ── MediaPipe CDN ──────────────────────────────────────────────────────── -->
+<script src="shared.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1632090621/camera_utils.js" crossorigin="anonymous"></script>
 
 <script>
 "use strict";
 
-/* ── MediaPipe landmark indices ──────────────────────────────────────────── */
+/* ── MediaPipe landmark indices ────────────────────────────────────────────── */
 const LM = {
-  // ICD (inter-canthus distance) — scale reference for head-pose normalisation
   R_EYE_OUTER:   33,   // image-right outer canthus (bio LEFT)
   L_EYE_OUTER:  263,   // image-left  outer canthus (bio RIGHT)
-  // Upper / lower eyelid centres
   R_EYE_TOP:    159,
   R_EYE_BOT:    145,
   L_EYE_TOP:    386,
   L_EYE_BOT:    374,
-  // Lip corners
   MOUTH_L:       61,
   MOUTH_R:      291,
-  // Face bounds for oval guide
   NOSE_TOP:      10,
   CHIN:         152,
-  FACE_L:       234,   // image-right cheek edge (face width reference)
-  FACE_R:       454,   // image-left  cheek edge
+  FACE_L:       234,
+  FACE_R:       454,
 };
 
-/* ── Web Audio beep helper ───────────────────────────────────────────────── */
-let _audioCtx = null;
-function beep(freq = 880, dur = 0.08, vol = 0.25) {
-  try {
-    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc  = _audioCtx.createOscillator();
-    const gain = _audioCtx.createGain();
-    osc.connect(gain); gain.connect(_audioCtx.destination);
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(vol, _audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, _audioCtx.currentTime + dur);
-    osc.start(); osc.stop(_audioCtx.currentTime + dur);
-  } catch (_) {}
-}
-
-/* ── ICD normalization helpers ───────────────────────────────────────────── */
-function getICD(lms) {
-  const dx = lms[LM.L_EYE_OUTER].x - lms[LM.R_EYE_OUTER].x;
-  const dy = lms[LM.L_EYE_OUTER].y - lms[LM.R_EYE_OUTER].y;
-  return Math.sqrt(dx*dx + dy*dy);
-}
-
-function getTiltCS(lms) {
-  const dx = lms[LM.L_EYE_OUTER].x - lms[LM.R_EYE_OUTER].x;
-  const dy = lms[LM.L_EYE_OUTER].y - lms[LM.R_EYE_OUTER].y;
-  const t  = Math.atan2(dy, dx);
-  return { cosT: Math.cos(-t), sinT: Math.sin(-t) };
-}
-
-function normVert(ax, ay, bx, by, icdVal, cosT, sinT) {
-  const rx = bx-ax, ry = by-ay;
-  return (rx*sinT + ry*cosT) / icdVal;
-}
-
-/* ── Phase state machine ─────────────────────────────────────────────────── */
+/* ── Phase state machine ───────────────────────────────────────────────────── */
 const PHASE = { IDLE: 0, ALIGN: 1, SETUP: 2, BLINK: 3, SMILE: 4, SYMPTOMS: 5, RESULTS: 6 };
-let phase         = PHASE.IDLE;
-let phaseStart    = 0;
-let recordStart   = 0;
-let alignOkSince  = null;   // timestamp when face first entered the oval
+let phase        = PHASE.IDLE;
+let phaseStart   = 0;
+let recordStart  = 0;
+let alignOkSince = null;
 
 const DURATIONS = {
-  [PHASE.ALIGN]:  800,    // 0.8s face must be inside oval before auto-advancing
-  [PHASE.SETUP]:  1500,   // 1.5s baseline
-  [PHASE.BLINK]:  2500,   // 2.5s blink window
-  [PHASE.SMILE]:  2500,   // 2.5s smile window
+  [PHASE.ALIGN]: 800, [PHASE.SETUP]: 1500,
+  [PHASE.BLINK]: 2500, [PHASE.SMILE]: 2500,
 };
 const GUIDANCE = {
-  [PHASE.ALIGN]:  "CENTRE YOUR FACE",
-  [PHASE.SETUP]:  "RELAX YOUR FACE",
-  [PHASE.BLINK]:  "BLINK HARD NOW",
-  [PHASE.SMILE]:  "SMILE BROADLY",
+  [PHASE.ALIGN]: "CENTRE YOUR FACE", [PHASE.SETUP]: "RELAX YOUR FACE",
+  [PHASE.BLINK]: "BLINK HARD NOW",   [PHASE.SMILE]: "SMILE BROADLY",
 };
 
-/* ── Baseline accumulator (ICD-normalised) ───────────────────────────────── */
-const baseline = {
-  rEyeSum: 0, lEyeSum: 0, n: 0,
-  rSmileY: 0, lSmileY: 0,   // raw normalised mouth-corner y at rest
-  icdRef:  0,                // ICD at baseline
-};
+const baseline = { rEyeSum: 0, lEyeSum: 0, n: 0, rSmileY: 0, lSmileY: 0, icdRef: 0 };
 
-/* ── Detected events (ms from recording start) ───────────────────────────── */
-const events = {
-  rBlink: null,   // image-right eye (biological LEFT)
-  lBlink: null,   // image-left  eye (biological RIGHT)
-  rSmile: null,   // image-right corner (biological LEFT)
-  lSmile: null,   // image-left  corner (biological RIGHT)
-};
+const events = { rBlink: null, lBlink: null, rSmile: null, lSmile: null };
 
-/* ── Last assessment result (for save) ──────────────────────────────────── */
 let lastResult = null;
 
-/* ── DOM refs ────────────────────────────────────────────────────────────── */
 const $ = (id) => document.getElementById(id);
 
-/* ── Phase visibility ────────────────────────────────────────────────────── */
 function showPhase(name) {
-  ["idle","camera","symptoms","results"].forEach((p) => {
+  ["idle", "camera", "symptoms", "results"].forEach((p) => {
     const el = $(`phase-${p}`);
     if (el) el.classList.toggle("active", p === name);
   });
 }
 
-/* ── Countdown bar update ────────────────────────────────────────────────── */
 function updateCountdown(elapsed, total) {
   const pct = Math.max(0, Math.min(100, (1 - elapsed / total) * 100));
   $("countdown-bar").style.width = pct + "%";
@@ -620,38 +367,30 @@ function updateCountdown(elapsed, total) {
   if (bar) bar.setAttribute("aria-valuenow", Math.round(pct));
 }
 
-/* ── MediaPipe frame handler ─────────────────────────────────────────────── */
+/* ── MediaPipe frame handler ───────────────────────────────────────────────── */
 function onResults(results) {
   const overlay = $("cam-overlay");
   if (!overlay) return;
   const ctx = overlay.getContext("2d");
   ctx.clearRect(0, 0, overlay.width, overlay.height);
-
   const W = overlay.width, H = overlay.height;
 
-  // ── Draw face oval guide during ALIGN phase ──────────────────────────────
   if (phase === PHASE.ALIGN) {
     const hasLms = results.multiFaceLandmarks?.length;
     ctx.save();
     ctx.strokeStyle = hasLms ? "rgba(52,211,153,.8)" : "rgba(248,113,113,.6)";
-    ctx.lineWidth = 2.5;
-    ctx.setLineDash([8, 5]);
-    ctx.beginPath();
-    ctx.ellipse(W / 2, H * 0.48, W * 0.22, H * 0.33, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    ctx.lineWidth = 2.5; ctx.setLineDash([8, 5]);
+    ctx.beginPath(); ctx.ellipse(W / 2, H * 0.48, W * 0.22, H * 0.33, 0, 0, Math.PI * 2);
+    ctx.stroke(); ctx.restore();
   }
 
   const hasFace = results.multiFaceLandmarks?.length;
   if (!hasFace) { alignOkSince = null; return; }
   const lms = results.multiFaceLandmarks[0];
 
-  // ── Draw cyan landmark dots ──────────────────────────────────────────────
   ctx.fillStyle = "rgba(34,211,238,.55)";
   for (const pt of lms) {
-    ctx.beginPath();
-    ctx.arc((1 - pt.x) * W, pt.y * H, 1.2, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc((1 - pt.x) * W, pt.y * H, 1.2, 0, Math.PI * 2); ctx.fill();
   }
 
   if (phase === PHASE.IDLE || phase === PHASE.SYMPTOMS || phase === PHASE.RESULTS) return;
@@ -661,14 +400,12 @@ function onResults(results) {
   if (d < 0.01) return;
   const { cosT, sinT } = getTiltCS(lms);
 
-  // ── ALIGN phase: check face is roughly centred in the oval ──────────────
   if (phase === PHASE.ALIGN) {
-    // Face centre (x) should be near 0.5, face Y should be reasonable
     const faceCx = (lms[LM.R_EYE_OUTER].x + lms[LM.L_EYE_OUTER].x) / 2;
     const faceCy = (lms[LM.NOSE_TOP].y + lms[LM.CHIN].y) / 2;
     const centred = Math.abs(faceCx - 0.5) < 0.12 && faceCy > 0.25 && faceCy < 0.75;
     if (centred) {
-      if (!alignOkSince) { alignOkSince = now; beep(660, 0.06, 0.15); }
+      if (!alignOkSince) { alignOkSince = now; beep(660, 0.06, 0.15); }  // shared.js
       updateCountdown(now - alignOkSince, DURATIONS[PHASE.ALIGN]);
       if (now - alignOkSince >= DURATIONS[PHASE.ALIGN]) {
         beep(880, 0.12, 0.3);
@@ -677,35 +414,22 @@ function onResults(results) {
       }
     } else {
       alignOkSince = null;
-      updateCountdown(0, DURATIONS[PHASE.ALIGN]);  // reset bar
+      updateCountdown(0, DURATIONS[PHASE.ALIGN]);
     }
     return;
   }
 
   const elapsed = now - recordStart;
 
-  // ── ICD-normalised eye openness: normVert(upper→lower lid) ─────────────
-  const rEye = normVert(
-    lms[LM.R_EYE_TOP].x, lms[LM.R_EYE_TOP].y,
-    lms[LM.R_EYE_BOT].x, lms[LM.R_EYE_BOT].y,
-    d, cosT, sinT,
-  );
-  const lEye = normVert(
-    lms[LM.L_EYE_TOP].x, lms[LM.L_EYE_TOP].y,
-    lms[LM.L_EYE_BOT].x, lms[LM.L_EYE_BOT].y,
-    d, cosT, sinT,
-  );
+  const rEye = normVert(lms[LM.R_EYE_TOP].x, lms[LM.R_EYE_TOP].y, lms[LM.R_EYE_BOT].x, lms[LM.R_EYE_BOT].y, d, cosT, sinT);
+  const lEye = normVert(lms[LM.L_EYE_TOP].x, lms[LM.L_EYE_TOP].y, lms[LM.L_EYE_BOT].x, lms[LM.L_EYE_BOT].y, d, cosT, sinT);
 
-  // Normalised mouth-corner y-position (head-pose-corrected vertical)
   const rMY = lms[LM.MOUTH_R].y;
   const lMY = lms[LM.MOUTH_L].y;
 
   if (phase === PHASE.SETUP) {
     baseline.rEyeSum += rEye; baseline.lEyeSum += lEye; baseline.n++;
-    baseline.rSmileY  = rMY;
-    baseline.lSmileY  = lMY;
-    baseline.icdRef   = d;
-
+    baseline.rSmileY  = rMY; baseline.lSmileY  = lMY; baseline.icdRef = d;
     updateCountdown(elapsed, DURATIONS[PHASE.SETUP]);
     if (now - phaseStart >= DURATIONS[PHASE.SETUP]) transitionTo(PHASE.BLINK);
     return;
@@ -713,51 +437,36 @@ function onResults(results) {
 
   if (phase === PHASE.BLINK) {
     updateCountdown(now - phaseStart, DURATIONS[PHASE.BLINK]);
-
     const rBase = baseline.rEyeSum / Math.max(1, baseline.n);
     const lBase = baseline.lEyeSum / Math.max(1, baseline.n);
-    // Eye closes → normVert decreases toward 0
     const BLINK_THRESH = 0.30;
-
     if (!events.rBlink && rEye < rBase * BLINK_THRESH) {
-      events.rBlink = elapsed; $("dot-r-blink").classList.add("fired");
-      beep(1047, 0.07, 0.2);
+      events.rBlink = elapsed; $("dot-r-blink").classList.add("fired"); beep(1047, 0.07, 0.2);
     }
     if (!events.lBlink && lEye < lBase * BLINK_THRESH) {
-      events.lBlink = elapsed; $("dot-l-blink").classList.add("fired");
-      beep(1047, 0.07, 0.2);
+      events.lBlink = elapsed; $("dot-l-blink").classList.add("fired"); beep(1047, 0.07, 0.2);
     }
-
     if (now - phaseStart >= DURATIONS[PHASE.BLINK]) transitionTo(PHASE.SMILE);
     return;
   }
 
   if (phase === PHASE.SMILE) {
     updateCountdown(now - phaseStart, DURATIONS[PHASE.SMILE]);
-
-    // Smile: upper mouth corner moves UP (decreasing raw y)
-    // Threshold: 4% of ICD shift upward
     const SMILE_THRESH = baseline.icdRef * 0.08;
-
     if (!events.rSmile && (baseline.rSmileY - rMY) > SMILE_THRESH) {
-      events.rSmile = elapsed; $("dot-r-smile").classList.add("fired");
-      beep(1319, 0.07, 0.2);
+      events.rSmile = elapsed; $("dot-r-smile").classList.add("fired"); beep(1319, 0.07, 0.2);
     }
     if (!events.lSmile && (baseline.lSmileY - lMY) > SMILE_THRESH) {
-      events.lSmile = elapsed; $("dot-l-smile").classList.add("fired");
-      beep(1319, 0.07, 0.2);
+      events.lSmile = elapsed; $("dot-l-smile").classList.add("fired"); beep(1319, 0.07, 0.2);
     }
-
     if (now - phaseStart >= DURATIONS[PHASE.SMILE]) transitionTo(PHASE.SYMPTOMS);
     return;
   }
 }
 
-/* ── Phase transitions ───────────────────────────────────────────────────── */
+/* ── Phase transitions ─────────────────────────────────────────────────────── */
 function transitionTo(next) {
-  phase      = next;
-  phaseStart = performance.now();
-
+  phase = next; phaseStart = performance.now();
   if (next === PHASE.ALIGN) {
     $("guidance-text").textContent = GUIDANCE[PHASE.ALIGN];
     $("guidance-text").style.color = "var(--muted)";
@@ -780,27 +489,21 @@ function transitionTo(next) {
   }
 }
 
-/* ── Assessment: build result ────────────────────────────────────────────── */
+/* ── Assessment result ─────────────────────────────────────────────────────── */
 async function computeResult(symptoms) {
   const payload = {
-    right_eye:   { blink_close_ms: events.rBlink,  detected: events.rBlink  !== null },
-    left_eye:    { blink_close_ms: events.lBlink,  detected: events.lBlink  !== null },
-    right_smile: { elevation_ms:   events.rSmile,  detected: events.rSmile  !== null },
-    left_smile:  { elevation_ms:   events.lSmile,  detected: events.lSmile  !== null },
+    right_eye:   { blink_close_ms: events.rBlink, detected: events.rBlink !== null },
+    left_eye:    { blink_close_ms: events.lBlink, detected: events.lBlink !== null },
+    right_smile: { elevation_ms:   events.rSmile, detected: events.rSmile !== null },
+    left_smile:  { elevation_ms:   events.lSmile, detected: events.lSmile !== null },
     symptom_flags: symptoms,
   };
-
-  // Try backend first; fall back to local computation
   try {
     const resp = await fetch("/api/prodromal/assess", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
     });
     if (resp.ok) return await resp.json();
   } catch (_) {}
-
-  // Local fallback (same algorithm as backend)
   return localAssess(payload);
 }
 
@@ -808,22 +511,18 @@ function localAssess(req) {
   const eyeAsym   = (req.right_eye.detected && req.left_eye.detected)
     ? Math.abs((req.right_eye.blink_close_ms || 0) - (req.left_eye.blink_close_ms || 0))
     : 0;
-  const eyeSide = (!eyeAsym) ? "NONE"
-    : (req.left_eye.blink_close_ms || 0) > (req.right_eye.blink_close_ms || 0)
-      ? "LEFT" : "RIGHT";
-
+  const eyeSide   = !eyeAsym ? "NONE"
+    : (req.left_eye.blink_close_ms || 0) > (req.right_eye.blink_close_ms || 0) ? "LEFT" : "RIGHT";
   const smileAsym = (req.right_smile.detected && req.left_smile.detected)
     ? Math.abs((req.right_smile.elevation_ms || 0) - (req.left_smile.elevation_ms || 0))
     : 0;
-  const smileSide = (!smileAsym) ? "NONE"
-    : (req.left_smile.elevation_ms || 0) > (req.right_smile.elevation_ms || 0)
-      ? "LEFT" : "RIGHT";
+  const smileSide = !smileAsym ? "NONE"
+    : (req.left_smile.elevation_ms || 0) > (req.right_smile.elevation_ms || 0) ? "LEFT" : "RIGHT";
 
-  const asym = Math.max(eyeAsym, smileAsym);
-  const side = eyeAsym >= smileAsym ? eyeSide : smileSide;
-  const syms = Object.values(req.symptom_flags).filter(Boolean).length;
-  const alert = asym > 200 && syms >= 1 ? "RED"
-    : asym > 200 ? "YELLOW" : "NONE";
+  const asym  = Math.max(eyeAsym, smileAsym);
+  const side  = eyeAsym >= smileAsym ? eyeSide : smileSide;
+  const syms  = Object.values(req.symptom_flags).filter(Boolean).length;
+  const alert = asym > 200 && syms >= 1 ? "RED" : asym > 200 ? "YELLOW" : "NONE";
 
   const parts = [];
   if (asym > 50) parts.push(`${asym.toFixed(0)} ms asymmetry — ${side} side delayed`);
@@ -837,36 +536,31 @@ function localAssess(req) {
     confidence:    +(0.40 + 0.30 *
       (+(req.right_eye.detected && req.left_eye.detected) +
        +(req.right_smile.detected && req.left_smile.detected))).toFixed(2),
-    detail:        parts.join("; "),
-    timestamp:     new Date().toISOString(),
-    id:            crypto.randomUUID?.() || Date.now().toString(),
+    detail:    parts.join("; "),
+    timestamp: new Date().toISOString(),
+    id:        crypto.randomUUID?.() || Date.now().toString(),
   };
 }
 
-/* ── Render results ──────────────────────────────────────────────────────── */
+/* ── Render results ────────────────────────────────────────────────────────── */
 function renderResults(r) {
   lastResult = r;
-
-  // Alert badge
-  const badge = $("alert-badge");
+  const badge      = $("alert-badge");
   const alertLower = r.alert_level.toLowerCase();
-  badge.className = `alert-badge ${alertLower}`;  // CSS variable-based
+  badge.className  = "";
+  badge.id         = "alert-badge";
+  badge.classList.add(alertLower);
   if (alertLower === "none") {
-    badge.className = ""; badge.id = "alert-badge";
-    badge.classList.add("none");
     badge.textContent = "✓  NO SIGNIFICANT ASYMMETRY DETECTED";
     badge.setAttribute("aria-label", "No significant asymmetry detected");
   } else if (alertLower === "yellow") {
-    badge.classList.add("yellow");
     badge.textContent = "⚠  TEMPORAL ASYMMETRY DETECTED — MONITOR";
     badge.setAttribute("aria-label", "Warning: temporal asymmetry detected");
   } else {
-    badge.classList.add("red");
     badge.textContent = "🔴  HIGH-RISK SIGNAL — CONSULT PHYSICIAN";
     badge.setAttribute("aria-label", "High risk signal detected. Consult physician.");
   }
 
-  // Timing values
   function fmtMs(val, otherVal) {
     if (val === null || val === undefined) return { text: "NOT DETECTED", cls: "na" };
     const diff = (otherVal !== null && otherVal !== undefined) ? val - otherVal : 0;
@@ -882,7 +576,6 @@ function renderResults(r) {
   $("rv-r-smile").textContent = rs.text; $("rv-r-smile").className = "timing-val " + rs.cls;
   $("rv-l-smile").textContent = ls.text; $("rv-l-smile").className = "timing-val " + ls.cls;
 
-  // Timeline canvas
   const canvas = $("timeline-canvas");
   canvas.width  = canvas.offsetWidth || 600;
   canvas.height = 60;
@@ -897,43 +590,29 @@ function renderResults(r) {
     { ms: events.lSmile, label: "L-SMILE", y: 57, col: "#f59e0b" },
   ];
   tracks.forEach(({ ms, label, y, col }) => {
-    ctx.strokeStyle = "rgba(255,255,255,.08)";
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,.08)"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-
-    ctx.fillStyle = "#64748b";
-    ctx.font = "9px monospace";
+    ctx.fillStyle = "#64748b"; ctx.font = "9px monospace";
     ctx.fillText(label, 2, y - 1);
-
     if (ms !== null) {
       const x = ms * timeScale;
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = col;
-      ctx.font = "bold 9px monospace";
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = col; ctx.font = "bold 9px monospace";
       ctx.fillText(ms.toFixed(0) + "ms", x + 7, y + 4);
     }
   });
 
-  // Detail
   $("detail-text").innerHTML = `
     <strong>Analysis:</strong> ${r.detail}<br/>
     <strong>Confidence:</strong> ${(r.confidence * 100).toFixed(0)}%&nbsp;&nbsp;
     <strong>Affected side:</strong> ${r.affected_side}&nbsp;&nbsp;
-    <span style="color:var(--muted);font-size:.75rem">
-      Assessment time: ${new Date(r.timestamp).toLocaleString()}
-    </span>`;
+    <span style="color:var(--muted);font-size:.75rem">Assessment time: ${new Date(r.timestamp).toLocaleString()}</span>`;
 
   showPhase("results");
 }
 
-/* ── DOM interactions ────────────────────────────────────────────────────── */
-$("start-btn").addEventListener("click", () => {
-  showPhase("camera");
-  initCamera();
-});
+/* ── DOM interactions ──────────────────────────────────────────────────────── */
+$("start-btn").addEventListener("click", () => { showPhase("camera"); initCamera(); });
 
 $("submit-symptoms-btn").addEventListener("click", async () => {
   const symptoms = {
@@ -950,7 +629,7 @@ $("restart-btn").addEventListener("click", () => {
   Object.assign(events,   { rBlink: null, lBlink: null, rSmile: null, lSmile: null });
   Object.assign(baseline, { rEyeSum: 0, lEyeSum: 0, n: 0, rSmileY: 0, lSmileY: 0, icdRef: 0 });
   alignOkSince = null;
-  ["dot-r-blink","dot-l-blink","dot-r-smile","dot-l-smile"].forEach((id) => $(id).classList.remove("fired"));
+  ["dot-r-blink", "dot-l-blink", "dot-r-smile", "dot-l-smile"].forEach((id) => $(id).classList.remove("fired"));
   [$("cb-mastoid"), $("cb-hyper"), $("cb-taste")].forEach((cb) => { cb.checked = false; });
   $("countdown-bar").style.background = "var(--cyan)";
   phase = PHASE.IDLE;
@@ -959,15 +638,15 @@ $("restart-btn").addEventListener("click", () => {
 
 $("save-btn").addEventListener("click", () => {
   if (!lastResult) return;
-  const history = JSON.parse(localStorage.getItem("ns_prodromal") || "[]");
+  const history = JSON.parse(localStorage.getItem(NS_KEYS.PRODROMAL) || "[]");
   history.push(lastResult);
   if (history.length > 200) history.splice(0, history.length - 200);
-  localStorage.setItem("ns_prodromal", JSON.stringify(history));
+  localStorage.setItem(NS_KEYS.PRODROMAL, JSON.stringify(history));
   $("save-btn").textContent = "✓ Saved";
   $("save-btn").disabled = true;
 });
 
-/* ── Camera + MediaPipe initialisation ───────────────────────────────────── */
+/* ── Camera + MediaPipe initialisation ────────────────────────────────────── */
 let _camera = null;
 
 async function initCamera() {
@@ -975,7 +654,6 @@ async function initCamera() {
   const overlay = $("cam-overlay");
   const errDiv  = $("cam-error");
 
-  // Size the overlay to match video
   const updateSize = () => {
     overlay.width  = video.videoWidth  || 640;
     overlay.height = video.videoHeight || 480;
@@ -983,15 +661,7 @@ async function initCamera() {
   video.addEventListener("loadedmetadata", updateSize, { once: true });
 
   try {
-    const faceMesh = new FaceMesh({
-      locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`,
-    });
-    faceMesh.setOptions({
-      maxNumFaces:            1,
-      refineLandmarks:        false,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence:  0.5,
-    });
+    const faceMesh = createFaceMesh();  // shared.js
     faceMesh.onResults(onResults);
 
     _camera = new Camera(video, {
@@ -999,8 +669,6 @@ async function initCamera() {
       width: 640, height: 480,
     });
     await _camera.start();
-
-    // Start in ALIGN phase so user can centre their face
     setTimeout(() => { transitionTo(PHASE.ALIGN); }, 400);
 
   } catch (err) {

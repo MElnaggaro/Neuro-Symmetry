@@ -1,0 +1,143 @@
+/* ── Neuro-Symmetry Shared Design System ─────────────────────────────────────
+   Loaded by mirror.html, game.html, sentinel.html, tracker.html.
+   Contains: design tokens, reset, body base, nav, buttons, side-selectors,
+             rationale banner, camera-error overlay, focus ring.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── Design tokens ─────────────────────────────────────────────────────────── */
+:root {
+  --bg:      #0f172a;
+  --surface: #1e293b;
+  --panel:   #1a2535;
+  --cyan:    #22d3ee;
+  --blue:    #3b82f6;
+  --txt:     #e2e8f0;
+  --muted:   #64748b;
+  --border:  #1e3a52;
+  --green:   #34d399;
+  --amber:   #f59e0b;
+  --red:     #f87171;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Body base ─────────────────────────────────────────────────────────────── */
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Navigation ────────────────────────────────────────────────────────────── */
+.ns-nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: .7rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.ns-nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  transition: color .15s;
+}
+.ns-nav a:hover,
+.ns-nav a.active { color: var(--cyan); }
+.ns-nav .ns-title {
+  color: var(--cyan);
+  font-size: .82rem;
+  font-weight: 800;
+  letter-spacing: .15em;
+  margin-left: auto;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+.btn {
+  padding: .6rem 1.4rem;
+  border-radius: .5rem;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  cursor: pointer;
+  border: none;
+  transition: filter .15s, transform .1s;
+}
+.btn:hover  { filter: brightness(1.12); }
+.btn:active { transform: scale(.97); }
+
+.btn-primary { background: linear-gradient(135deg, #1d4ed8, #0891b2); color: #bfdbfe; }
+
+.btn-ghost {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.btn-ghost:hover { color: var(--txt); border-color: var(--cyan); }
+
+.btn-outline {
+  background: transparent;
+  color: var(--cyan);
+  border: 1px solid var(--cyan);
+}
+.btn-outline:hover { background: rgba(34,211,238,.1); }
+
+/* ── Side selector (mirror + game) ────────────────────────────────────────── */
+.side-btn,
+.side-pill {
+  padding: .28rem .65rem;
+  border-radius: .4rem;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  transition: all .15s;
+}
+.side-btn.active,
+.side-pill.active {
+  background: rgba(34,211,238,.15);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+/* ── Rationale banner (mirror + sentinel) ──────────────────────────────────── */
+.rationale {
+  width: 100%;
+  max-width: 680px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--cyan);
+  border-radius: .5rem;
+  padding: .875rem 1rem;
+  font-size: .8rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.rationale strong { color: var(--txt); }
+
+/* ── Camera error overlay ──────────────────────────────────────────────────── */
+.cam-error {
+  position: absolute; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(15,23,42,.88);
+  color: var(--red);
+  font-size: .875rem;
+  text-align: center;
+  padding: 1.5rem;
+}
+
+/* ── Focus ring ────────────────────────────────────────────────────────────── */
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }

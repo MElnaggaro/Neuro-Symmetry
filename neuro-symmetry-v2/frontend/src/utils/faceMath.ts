@@ -132,7 +132,7 @@ const BETA = 0.35;
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /** 2-D Euclidean distance (x, y only). */
-function distance2(a: NormalizedLandmark, b: NormalizedLandmark): number {
+export function distance2(a: NormalizedLandmark, b: NormalizedLandmark): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
@@ -145,7 +145,7 @@ function distance3(a: NormalizedLandmark, b: NormalizedLandmark): number {
  * Eye Aspect Ratio: (||p2−p6|| + ||p3−p5||) / (2·||p1−p4||).
  * Returns 0 if the eye width is degenerate.
  */
-function eyeAspectRatio(points: NormalizedLandmarkList, idx: readonly number[]): number {
+export function eyeAspectRatio(points: NormalizedLandmarkList, idx: readonly number[]): number {
   const [p1, p2, p3, p4, p5, p6] = idx.map((i) => points[i]);
   const width = distance2(p1, p4);
   if (width < 1e-6) return 0;
