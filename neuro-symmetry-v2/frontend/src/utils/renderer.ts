@@ -287,8 +287,13 @@ export function drawBiometricOverlay(
 // ── Heatmap renderer ──────────────────────────────────────────────────────────
 
 /**
- * Renders semi-transparent zone overlays for the top-5 XAI features
- * that have a registered ZONE_MAP entry.
+ * Renders semi-transparent zone overlays for the top XAI features that have a
+ * registered ZONE_MAP entry.
+ *
+ * The video underneath has CSS `transform: scaleX(-1)` (mirror), so the X axis
+ * is flipped here too — same convention as `_px()` in drawBiometricOverlay.
+ * Without this, every left/right zone would render on the opposite side of
+ * the user's face from the feature it represents.
  */
 export function drawHeatmap(
   ctx:         CanvasRenderingContext2D,
@@ -304,7 +309,11 @@ export function drawHeatmap(
 
   for (const { feature, level } of visible) {
     const [nx, ny, nw, nh] = ZONE_MAP[feature as keyof typeof ZONE_MAP] || [0, 0, 0, 0];
-    const x = nx * w, y = ny * h, fw = nw * w, fh = nh * h;
+    // Mirror X to match the scaleX(-1) video: anchor the rect at (1 - nx - nw)
+    const x  = (1 - nx - nw) * w;
+    const y  = ny * h;
+    const fw = nw * w;
+    const fh = nh * h;
     const lvl = level as XAILevel;
 
     ctx.fillStyle   = FILL[lvl]   ?? FILL.DEFAULT;
