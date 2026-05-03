@@ -6,13 +6,21 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # V2_MODEL_PATH mounts the volume path inside the container
-      - V2_MODEL_PATH=/models/model_v2_calibrated.pt
-      - V2_DEVICE=cpu
+      NS_LOG_LEVEL: INFO
+      # pydantic-settings 2.7+ requires JSON-array syntax for list[str] fields
+      NS_CORS_ORIGINS: '["http://localhost:3000"]'
     volumes:
-      # Map the local checkpoints directory to /models in the container
-      - ./ai/checkpoints:/models:ro
+      # Override model artifacts without rebuilding the image
+      - ./ai/checkpoints:/app/ai/checkpoints:ro
+      - ./backend/models:/app/backend/models:ro
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
 
   frontend:
     build:
@@ -21,13 +29,13 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Instruct Vite dev server where to proxy API/WS requests
-      - VITE_BACKEND_URL=http://backend:8000
-      - CHOKIDAR_USEPOLLING=true # Helps with file watching inside Docker
+      # Vite proxy target — routes /api and /ws to the backend container
+      VITE_BACKEND_URL: "http://backend:8000"
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
-      # Mount the frontend directory to /app allowing hot-reloading
       - ./frontend:/app
-      - /app/node_modules # Prevents local node_modules from overwriting container's
+      - /app/node_modules
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy

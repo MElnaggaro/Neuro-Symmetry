@@ -52,6 +52,7 @@ export const XAI_PALETTE = {
 export const HEATMAP_CONFIG = {
   /** Normalised [x, y, w, h] viewport zones per feature name. */
   ZONE_MAP: {
+    // Named scalar features (indices 40-49)
     ear_right:         [0.27, 0.36, 0.17, 0.15],
     ear_left:          [0.56, 0.36, 0.17, 0.15],
     ear_delta:         [0.24, 0.34, 0.52, 0.18],
@@ -61,6 +62,15 @@ export const HEATMAP_CONFIG = {
     mouth_y_delta:     [0.35, 0.60, 0.30, 0.13],
     mouth_x_offset:    [0.32, 0.57, 0.36, 0.16],
     texture_score:     [0.18, 0.17, 0.64, 0.66],
+    symmetry_error:    [0.18, 0.10, 0.64, 0.80],
+    // Bilateral distance region groups (indices 0-39, aggregated by region)
+    eye_outline:       [0.20, 0.25, 0.60, 0.22],
+    eye_aperture:      [0.25, 0.27, 0.50, 0.17],
+    eyebrow:           [0.22, 0.14, 0.56, 0.16],
+    nose:              [0.35, 0.38, 0.30, 0.24],
+    mouth:             [0.28, 0.57, 0.44, 0.20],
+    jaw:               [0.22, 0.72, 0.56, 0.18],
+    forehead:          [0.25, 0.05, 0.50, 0.12],
   } as Record<string, [number, number, number, number]>,
 
   FILL: {

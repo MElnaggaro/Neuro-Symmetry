@@ -26,6 +26,7 @@ dependencies = [
     "onnxruntime>=1.18",
     "numpy>=1.26",
     "scipy>=1.13",
+    "joblib>=1.4",
 
     # Data
     "Pillow>=10.3",

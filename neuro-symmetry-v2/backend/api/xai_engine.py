@@ -16,6 +16,19 @@ import numpy as np
 _N_TOP = 5
 _SIDE_EPS = 0.01
 
+# Bilateral distance features (indices 0–39) grouped by facial region.
+# Each region's contribution is the max of its constituent feature contributions,
+# making the XAI output readable and matching ZONE_MAP keys in the frontend.
+_BILATERAL_REGIONS: dict[str, range] = {
+    "eye_outline":  range(0,  9),
+    "eye_aperture": range(9,  13),
+    "eyebrow":      range(13, 23),
+    "nose":         range(23, 28),
+    "mouth":        range(28, 32),
+    "jaw":          range(32, 37),
+    "forehead":     range(37, 40),
+}
+
 
 @dataclass(frozen=True)
 class XAIFeature:
@@ -45,12 +58,6 @@ def _level(contribution: float, top_contribution: float) -> str:
     return "LOW"
 
 
-def _feature_name(feature_names: Sequence[str], index: int) -> str:
-    if 0 <= index < len(feature_names):
-        return feature_names[index]
-    return f"feature_{index}"
-
-
 def _rank_contributions(
     features: np.ndarray,
     feature_names: Sequence[str],
@@ -59,10 +66,10 @@ def _rank_contributions(
     """
     Rank clinically interpretable asymmetry features.
 
-    The ONNX graph does not expose gradients, so this uses deterministic
-    domain-weighted attribution over the 50-D feature vector. Contributions are
-    gated by pathological probability so Normal predictions produce near-zero
-    explanation scores.
+    Bilateral distance features (0–39) are aggregated by facial region so the
+    output uses readable names (eyebrow, mouth, jaw…) that map directly to
+    frontend ZONE_MAP heatmap zones. Named scalar features (40–49) are ranked
+    individually as before.
     """
     weights = np.ones(50, dtype=np.float32) * 0.35
     weights[0:40] = 0.45
@@ -81,18 +88,30 @@ def _rank_contributions(
     signal[48] = max(0.0, 1.0 - float(features[48]))
     signal[49] = max(0.0, float(features[49]))
 
-    raw = signal * weights * max(0.0, min(pathological_prob, 1.0))
-    order = np.argsort(raw)[::-1]
-    top_score = float(raw[order[0]]) if order.size else 0.0
+    gate = max(0.0, min(pathological_prob, 1.0))
+    raw  = signal * weights * gate
+
+    # Build candidate list: one entry per region + one per named scalar feature
+    candidates: list[tuple[str, float]] = []
+
+    for region_name, rng in _BILATERAL_REGIONS.items():
+        region_score = float(raw[list(rng)].max())
+        candidates.append((region_name, region_score))
+
+    for idx in range(40, 50):
+        name = feature_names[idx] if idx < len(feature_names) else f"feature_{idx}"
+        candidates.append((name, float(raw[idx])))
+
+    candidates.sort(key=lambda t: t[1], reverse=True)
+    top_score = candidates[0][1] if candidates else 0.0
 
     ranked: list[XAIFeature] = []
-    for index in order:
-        contribution = float(raw[index])
+    for name, contribution in candidates:
         if contribution <= 0.0 and ranked:
             break
         ranked.append(
             XAIFeature(
-                feature=_feature_name(feature_names, int(index)),
+                feature=name,
                 contribution=round(contribution, 4),
                 level=_level(contribution, top_score),
             )
@@ -101,13 +120,8 @@ def _rank_contributions(
             break
 
     if not ranked:
-        ranked.append(
-            XAIFeature(
-                feature=_feature_name(feature_names, 49),
-                contribution=0.0,
-                level="LOW",
-            )
-        )
+        fallback = feature_names[49] if len(feature_names) > 49 else "symmetry_error"
+        ranked.append(XAIFeature(feature=fallback, contribution=0.0, level="LOW"))
 
     return ranked
 
