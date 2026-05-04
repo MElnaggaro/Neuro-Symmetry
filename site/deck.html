@@ -1,0 +1,1363 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Neuro-Symmetry — Pitch</title>
+  <meta name="description" content="Neuro-Symmetry pitch deck — facial-asymmetry detection for early stroke and palsy warning." />
+  <meta name="theme-color" content="#050505" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='50%25' r='50%25'%3E%3Cstop offset='0%25' stop-color='%2300e5b4'/%3E%3Cstop offset='100%25' stop-color='%2322d3ee'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='38' fill='url(%23g)'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* =====================================================================
+       Tokens
+       ===================================================================== */
+    :root {
+      --bg: #050505;
+      --fg: #f5f7fa;
+      --muted: #8b94a3;
+      --dim: #5a6373;
+      --hairline: rgba(255, 255, 255, 0.08);
+      --glass: rgba(255, 255, 255, 0.035);
+      --accent-1: #22d3ee;
+      --accent-2: #00e5b4;
+      --accent-grad: linear-gradient(135deg, #22d3ee 0%, #00e5b4 100%);
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    /* =====================================================================
+       Reset
+       ===================================================================== */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, Segoe UI, sans-serif;
+      font-weight: 400;
+      color: var(--fg);
+      background: var(--bg);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.55;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+    img, svg { display: block; max-width: 100%; }
+
+    /* =====================================================================
+       Chrome (header, dots, controls)
+       ===================================================================== */
+    .deck-chrome {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.5rem 2rem;
+      z-index: 30;
+      pointer-events: none;
+    }
+    .deck-chrome > * { pointer-events: auto; }
+    .brand {
+      display: inline-flex; align-items: center; gap: 0.55rem;
+      font-weight: 500; letter-spacing: -0.005em; font-size: 0.9375rem;
+    }
+    .brand .mark {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent-grad);
+      box-shadow: 0 0 14px var(--accent-1);
+    }
+    .counter {
+      font-family: var(--mono);
+      font-size: 0.8125rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+    .counter #cur { color: var(--fg); }
+    .progress-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: rgba(255,255,255,0.05);
+      z-index: 31;
+    }
+    .progress-bar span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: var(--accent-grad);
+      box-shadow: 0 0 12px rgba(34,211,238,0.5);
+      transition: width 0.6s cubic-bezier(.2,.7,.2,1);
+    }
+
+    .dots {
+      position: fixed;
+      bottom: 1.75rem; left: 50%;
+      transform: translateX(-50%);
+      display: flex; gap: 0.5rem;
+      z-index: 30;
+    }
+    .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      transition: background 0.4s, transform 0.4s cubic-bezier(.2,.7,.2,1);
+    }
+    .dot:hover { background: rgba(255,255,255,0.4); }
+    .dot.is-active { background: var(--accent-1); transform: scale(1.4); box-shadow: 0 0 10px var(--accent-1); }
+
+    .nav {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: rgba(8,8,10,0.55);
+      border: 1px solid var(--hairline);
+      backdrop-filter: blur(14px) saturate(140%);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
+      color: var(--fg);
+      display: grid; place-items: center;
+      font-size: 1.25rem;
+      opacity: 0;
+      transition: opacity 0.4s, transform 0.4s cubic-bezier(.2,.7,.2,1), border-color 0.4s, background 0.4s;
+      z-index: 30;
+    }
+    .nav.prev { left: 1.5rem; }
+    .nav.next { right: 1.5rem; }
+    body:hover .nav { opacity: 0.65; }
+    .nav:hover { opacity: 1 !important; border-color: rgba(34,211,238,0.4); transform: translateY(-50%) scale(1.05); }
+    .nav:disabled { opacity: 0 !important; pointer-events: none; }
+
+    .hint {
+      position: fixed;
+      bottom: 1.6rem; right: 2rem;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      padding: 0.45rem 0.8rem;
+      border-radius: 999px;
+      background: rgba(8,8,10,0.55);
+      border: 1px solid var(--hairline);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      z-index: 30;
+      transition: opacity 0.5s;
+    }
+    .hint.is-faded { opacity: 0.25; }
+
+    /* =====================================================================
+       Deck + Slides
+       ===================================================================== */
+    #deck {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      transition: transform 0.6s cubic-bezier(.2,.7,.2,1);
+      transform-origin: center center;
+    }
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      align-items: center;
+      padding: clamp(2rem, 6vh, 5rem) clamp(2rem, 8vw, 7rem);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      will-change: opacity, transform, filter;
+    }
+    .slide.is-active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+    .slide-inner {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 1200px;
+      margin-inline: auto;
+    }
+
+    /* =====================================================================
+       Inline SVG illustrations (cover, problem, insight, closing)
+       ===================================================================== */
+    .illustration {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .illustration svg { width: 100%; height: 100%; display: block; }
+    .ill-cover   { opacity: 0.55; }
+    .ill-problem { opacity: 0.65; }
+    .ill-insight { opacity: 0.50; }
+    .ill-closing { opacity: 0.75; }
+
+    @keyframes mesh-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+    @keyframes signal-drift {
+      0%   { transform: translateX(-3%); }
+      100% { transform: translateX(3%); }
+    }
+    @keyframes ring-pulse {
+      0%, 100% { transform: scale(1);    opacity: 1; }
+      50%      { transform: scale(1.03); opacity: 0.7; }
+    }
+    .ill-cover   .landmarks circle,
+    .ill-insight .landmarks circle { animation: mesh-pulse 5s ease-in-out infinite; }
+    .ill-problem .nodes-bright circle { animation: mesh-pulse 4s ease-in-out infinite; }
+    .ill-closing .signal { animation: signal-drift 12s ease-in-out infinite alternate; transform-origin: center; }
+    .ill-closing .rings  { animation: ring-pulse 7s ease-in-out infinite; transform-origin: 800px 450px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ill-cover .landmarks circle,
+      .ill-insight .landmarks circle,
+      .ill-problem .nodes-bright circle,
+      .ill-closing .signal,
+      .ill-closing .rings { animation: none !important; }
+    }
+
+    /* =====================================================================
+       Slide typography
+       ===================================================================== */
+    .eyebrow {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent-1);
+      margin-bottom: 1.75rem;
+      opacity: 0.85;
+    }
+    .h1 {
+      font-size: clamp(2.5rem, 6.5vw, 5.5rem);
+      font-weight: 500;
+      letter-spacing: -0.025em;
+      line-height: 1.02;
+      margin: 0 0 1.5rem;
+    }
+    .h2 {
+      font-size: clamp(2rem, 5vw, 4rem);
+      font-weight: 500;
+      letter-spacing: -0.025em;
+      line-height: 1.05;
+      margin: 0 0 1.5rem;
+    }
+    .body {
+      font-size: clamp(1.0625rem, 1.4vw, 1.25rem);
+      color: var(--muted);
+      max-width: 56ch;
+      margin: 0;
+      line-height: 1.55;
+    }
+    .body + .body { margin-top: 1rem; }
+    .accent-text {
+      background: var(--accent-grad);
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent;
+    }
+    .word { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.05em; }
+    .word .inner { display: inline-block; transform: translateY(110%); will-change: transform; }
+    .reveal { opacity: 0; transform: translateY(24px); }
+
+    /* =====================================================================
+       Slide 1 — Cover
+       ===================================================================== */
+    .cover { text-align: center; }
+    .cover .h1 { font-size: clamp(3.5rem, 11vw, 9rem); margin-bottom: 1.25rem; }
+    .cover .body { margin: 0 auto; }
+    .ambient { position: absolute; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
+    .ambient::before, .ambient::after {
+      content: ''; position: absolute; border-radius: 50%;
+      filter: blur(80px); opacity: 0.5; will-change: transform;
+    }
+    .ambient::before {
+      width: 60vmax; height: 60vmax; left: -10vmax; top: -10vmax;
+      background: radial-gradient(circle, rgba(34,211,238,0.4), transparent 60%);
+      animation: pulse 9s ease-in-out infinite;
+    }
+    .ambient::after {
+      width: 50vmax; height: 50vmax; right: -8vmax; bottom: -12vmax;
+      background: radial-gradient(circle, rgba(0,229,180,0.32), transparent 60%);
+      animation: pulse 11s ease-in-out infinite reverse;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.5; }
+      50%      { transform: scale(1.08); opacity: 0.75; }
+    }
+
+    /* =====================================================================
+       Slide 2 — Big stat
+       ===================================================================== */
+    .stat-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(2rem, 6vw, 5rem); align-items: end; }
+    .big-stat {
+      font-size: clamp(4rem, 12vw, 11rem);
+      font-weight: 500;
+      letter-spacing: -0.045em;
+      line-height: 0.95;
+      background: var(--accent-grad);
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent;
+    }
+    .big-stat-label {
+      display: block;
+      font-size: 0.875rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 1rem;
+    }
+    @media (max-width: 800px) { .stat-grid { grid-template-columns: 1fr; } }
+
+    /* =====================================================================
+       Slide 4 — Pillars
+       ===================================================================== */
+    .pillar-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-top: 2.5rem; }
+    @media (max-width: 800px) { .pillar-grid { grid-template-columns: 1fr; } }
+    .pillar {
+      padding: 1.75rem;
+      border-radius: 18px;
+      background: var(--glass);
+      border: 1px solid var(--hairline);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      min-height: 200px;
+      display: flex; flex-direction: column;
+    }
+    .pillar h3 { font-size: 1.125rem; font-weight: 500; letter-spacing: -0.01em; margin: 0 0 0.6rem; }
+    .pillar p { font-size: 0.9375rem; color: var(--muted); line-height: 1.55; margin: 0; }
+    .pillar-tag {
+      margin-top: auto; padding-top: 1.25rem;
+      font-family: var(--mono);
+      font-size: 0.6875rem; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent-1);
+    }
+
+    /* =====================================================================
+       Slide 5 — Pipeline
+       ===================================================================== */
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-top: 3rem;
+      position: relative;
+    }
+    .pipeline::before {
+      content: '';
+      position: absolute;
+      top: 1.5rem;
+      left: 4%; right: 4%;
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--hairline) 20%, var(--hairline) 80%, transparent);
+    }
+    .stage {
+      position: relative;
+      padding: 0.5rem 1rem 1rem;
+      text-align: left;
+    }
+    .stage-num {
+      width: 3rem; height: 3rem;
+      border-radius: 50%;
+      border: 1px solid var(--hairline);
+      background: var(--bg);
+      display: grid; place-items: center;
+      font-family: var(--mono);
+      font-size: 0.75rem; color: var(--accent-1);
+      margin-bottom: 1.25rem;
+      position: relative; z-index: 1;
+    }
+    .stage h4 { font-size: 1rem; font-weight: 500; letter-spacing: -0.01em; margin: 0 0 0.4rem; }
+    .stage p { font-size: 0.875rem; color: var(--muted); line-height: 1.5; margin: 0; }
+    @media (max-width: 800px) {
+      .pipeline { grid-template-columns: 1fr 1fr; }
+      .pipeline::before { display: none; }
+    }
+
+    /* =====================================================================
+       Slide 6 — Architecture stack
+       ===================================================================== */
+    .stack { display: grid; gap: 0.75rem; margin-top: 2.5rem; max-width: 720px; }
+    .layer {
+      display: grid;
+      grid-template-columns: 7rem 1fr;
+      align-items: center;
+      gap: 1.25rem;
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      background: var(--glass);
+      border: 1px solid var(--hairline);
+    }
+    .layer-name {
+      font-family: var(--mono);
+      font-size: 0.75rem; letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent-1);
+    }
+    .layer-content { font-size: 0.9375rem; color: var(--fg); }
+    .layer-content .sep { color: var(--dim); margin: 0 0.5rem; }
+    .layer-arrow {
+      display: grid; place-items: center;
+      height: 0.5rem;
+      color: var(--dim);
+      font-size: 0.75rem;
+    }
+    @media (max-width: 700px) {
+      .layer { grid-template-columns: 1fr; gap: 0.4rem; }
+    }
+
+    /* =====================================================================
+       Slide 7 — Big numbers
+       ===================================================================== */
+    .nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-top: 3rem; }
+    .num-cell {
+      padding: 1.5rem 0;
+      border-top: 1px solid var(--hairline);
+    }
+    .num-value {
+      font-size: clamp(3rem, 7vw, 6rem);
+      font-weight: 500;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      background: var(--accent-grad);
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent;
+      font-variant-numeric: tabular-nums;
+    }
+    .num-unit {
+      font-size: 1rem;
+      color: var(--muted);
+      margin-left: 0.25rem;
+      vertical-align: 0.6em;
+      -webkit-text-fill-color: var(--muted);
+    }
+    .num-label {
+      display: block;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 1rem;
+    }
+    @media (max-width: 800px) { .nums { grid-template-columns: 1fr 1fr; } }
+
+    /* =====================================================================
+       Slide 8 — Live (mirrors showcase CTA)
+       ===================================================================== */
+    .live-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 3rem; }
+    @media (max-width: 800px) { .live-row { grid-template-columns: 1fr; } }
+    .live-card {
+      position: relative;
+      display: flex; flex-direction: column; gap: 0.75rem;
+      padding: 2rem;
+      border-radius: 18px;
+      background: var(--glass);
+      border: 1px solid var(--hairline);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      transition: border-color 0.5s, transform 0.5s cubic-bezier(.2,.7,.2,1), background 0.5s;
+      overflow: hidden;
+    }
+    .live-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(34,211,238,0.25);
+      background: rgba(255,255,255,0.05);
+    }
+    .live-tag {
+      align-self: flex-start;
+      font-family: var(--mono);
+      font-size: 0.6875rem; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent-1);
+      padding: 0.3rem 0.6rem;
+      border-radius: 999px;
+      border: 1px solid rgba(34,211,238,0.25);
+      background: rgba(34,211,238,0.06);
+    }
+    .live-card h3 { font-size: 1.25rem; font-weight: 500; letter-spacing: -0.015em; margin: 0; }
+    .live-card p { font-size: 0.9375rem; color: var(--muted); margin: 0; }
+    .live-card code {
+      font-family: var(--mono);
+      font-size: 0.85em;
+      padding: 0.05rem 0.4rem;
+      border-radius: 5px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--hairline);
+      color: var(--accent-1);
+    }
+    .live-link {
+      margin-top: 0.75rem;
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-size: 0.9375rem; color: var(--fg);
+      transition: color 0.3s;
+    }
+    .live-link svg { transition: transform 0.4s cubic-bezier(.2,.7,.2,1); }
+    .live-card:hover .live-link { color: var(--accent-1); }
+    .live-card:hover .live-link svg { transform: translateX(4px); }
+
+    /* =====================================================================
+       Slide 9 — Compliance
+       ===================================================================== */
+    .compl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 2.5rem; }
+    @media (max-width: 800px) { .compl-grid { grid-template-columns: 1fr; } }
+    .compl-item {
+      display: flex; align-items: start; gap: 1rem;
+      padding: 1.25rem 1.5rem;
+      border-radius: 14px;
+      background: var(--glass);
+      border: 1px solid var(--hairline);
+    }
+    .compl-status {
+      flex: none;
+      width: 1.5rem; height: 1.5rem;
+      border-radius: 50%;
+      display: grid; place-items: center;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      margin-top: 0.1rem;
+    }
+    .compl-status.done { background: rgba(0,229,180,0.12); color: var(--accent-2); border: 1px solid rgba(0,229,180,0.3); }
+    .compl-status.todo { background: rgba(255,255,255,0.04); color: var(--muted); border: 1px solid var(--hairline); }
+    .compl-text h4 { margin: 0 0 0.25rem; font-size: 0.9375rem; font-weight: 500; }
+    .compl-text p  { margin: 0; font-size: 0.8125rem; color: var(--muted); line-height: 1.5; }
+
+    /* =====================================================================
+       Slide 10 — Closing
+       ===================================================================== */
+    .closing { text-align: center; }
+    .closing .h1 { font-size: clamp(2.75rem, 7.5vw, 6.5rem); max-width: 18ch; margin: 0 auto 2rem; }
+    .closing .meta { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+
+    /* =====================================================================
+       Overview mode (Esc) — thumbnail grid
+       ===================================================================== */
+    body.is-overview { overflow-y: auto; overflow-x: hidden; }
+    body.is-overview #deck {
+      position: static;
+      width: 100vw; height: auto;
+      transform: none;
+      pointer-events: auto;
+      padding: 5rem 2rem 5rem;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+      overflow: visible;
+    }
+    @media (max-width: 900px) { body.is-overview #deck { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { body.is-overview #deck { grid-template-columns: 1fr; } }
+    body.is-overview .slide {
+      position: relative;
+      inset: auto;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      height: auto;
+      padding: 0;
+      opacity: 1 !important;
+      visibility: visible !important;
+      pointer-events: auto;
+      cursor: pointer;
+      filter: none !important;
+      border: 1px solid var(--hairline);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--bg);
+      display: block;
+      transition: border-color 0.3s, transform 0.3s ease;
+    }
+    body.is-overview .slide:hover { border-color: rgba(34,211,238,0.5); transform: scale(1.02) !important; }
+    body.is-overview .slide.is-active { border-color: rgba(34,211,238,0.85); box-shadow: 0 0 24px rgba(34,211,238,0.18); }
+    body.is-overview .slide-inner {
+      width: 1600px;
+      max-width: none;
+      height: 900px;
+      padding: 80px 110px;
+      transform: scale(var(--ov-scale, 0.28));
+      transform-origin: top left;
+      display: grid;
+      align-content: center;
+    }
+    body.is-overview .ambient { display: none; }
+    body.is-overview .nav,
+    body.is-overview .hint,
+    body.is-overview .dots,
+    body.is-overview .progress-bar { display: none !important; }
+    body.is-overview .deck-chrome {
+      background: linear-gradient(to bottom, rgba(5,5,5,0.92), transparent);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    body.is-overview .word .inner { transform: none !important; }
+    body.is-overview .reveal { opacity: 1 !important; transform: none !important; }
+
+    /* =====================================================================
+       Reduced motion
+       ===================================================================== */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+      .word .inner { transform: none !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+
+    /* =====================================================================
+       Print (PDF export)
+       ===================================================================== */
+    @media print {
+      @page { size: 11in 7in landscape; margin: 0; }
+      body { overflow: visible; background: #050505; }
+      .deck-chrome, .nav, .hint, .dots, .progress-bar { display: none !important; }
+      #deck {
+        height: auto; width: 11in;
+        transform: none !important;
+      }
+      .slide {
+        position: relative !important;
+        inset: auto !important;
+        width: 11in; height: 7in;
+        page-break-after: always;
+        opacity: 1 !important;
+        visibility: visible !important;
+        filter: none !important;
+        transform: none !important;
+      }
+      .slide:last-child { page-break-after: auto; }
+      .word .inner { transform: none !important; }
+      .reveal { opacity: 1 !important; transform: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="deck-chrome">
+    <a class="brand" href="index.html" aria-label="Back to site">
+      <span class="mark"></span>
+      <span>Neuro-Symmetry</span>
+    </a>
+    <div class="counter"><span id="cur">01</span> <span style="color:var(--dim)">/</span> <span id="tot">10</span></div>
+  </header>
+
+  <div class="progress-bar"><span id="progress"></span></div>
+
+  <main id="deck">
+    <!-- ===================== Slide 1 — Cover ===================== -->
+    <section class="slide is-active cover" data-i="0">
+      <div class="ambient" aria-hidden="true"></div>
+      <div class="illustration ill-cover" aria-hidden="true">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="g-cover" cx="50%" cy="50%" r="55%">
+              <stop offset="0%"  stop-color="#22d3ee" stop-opacity="0.22"/>
+              <stop offset="55%" stop-color="#22d3ee" stop-opacity="0.06"/>
+              <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#g-cover)"/>
+          <g stroke="#22d3ee" stroke-width="1" fill="none" stroke-opacity="0.45">
+            <ellipse cx="800" cy="450" rx="220" ry="290" stroke-opacity="0.25"/>
+            <path d="M650,330 Q720,310 790,330"/>
+            <path d="M810,330 Q880,310 950,330"/>
+            <ellipse cx="715" cy="395" rx="35" ry="12"/>
+            <ellipse cx="885" cy="395" rx="35" ry="12"/>
+            <path d="M800,400 L800,540"/>
+            <path d="M770,560 Q800,580 830,560"/>
+            <path d="M740,640 Q800,660 860,640"/>
+            <line x1="800" y1="160" x2="800" y2="740" stroke-dasharray="3 9" stroke-opacity="0.18"/>
+          </g>
+          <g class="landmarks" fill="#22d3ee">
+            <circle cx="650" cy="330" r="3"/><circle cx="720" cy="312" r="3"/><circle cx="790" cy="330" r="3"/>
+            <circle cx="810" cy="330" r="3"/><circle cx="880" cy="312" r="3"/><circle cx="950" cy="330" r="3"/>
+            <circle cx="680" cy="395" r="3"/><circle cx="715" cy="385" r="3"/><circle cx="750" cy="395" r="3"/>
+            <circle cx="850" cy="395" r="3"/><circle cx="885" cy="385" r="3"/><circle cx="920" cy="395" r="3"/>
+            <circle cx="800" cy="400" r="2.5"/><circle cx="800" cy="470" r="2.5"/><circle cx="800" cy="540" r="2.5"/>
+            <circle cx="770" cy="560" r="3"/><circle cx="800" cy="575" r="3"/><circle cx="830" cy="560" r="3"/>
+            <circle cx="740" cy="640" r="3"/><circle cx="780" cy="650" r="3"/><circle cx="800" cy="655" r="3"/>
+            <circle cx="820" cy="650" r="3"/><circle cx="860" cy="640" r="3"/>
+          </g>
+        </svg>
+      </div>
+      <div class="slide-inner">
+        <span class="eyebrow reveal">Pitch · 2026</span>
+        <h1 class="h1" data-split>Neuro-Symmetry</h1>
+        <p class="body reveal">A multimodal neurological signal engine that surfaces facial asymmetry — and the seconds you can't afford to miss — from a standard webcam.</p>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 2 — Problem ===================== -->
+    <section class="slide" data-i="1">
+      <div class="illustration ill-problem" aria-hidden="true">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="g-brainL" cx="35%" cy="50%" r="32%">
+              <stop offset="0%"  stop-color="#22d3ee" stop-opacity="0.28"/>
+              <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="g-brainR" cx="65%" cy="50%" r="32%">
+              <stop offset="0%"  stop-color="#22d3ee" stop-opacity="0.05"/>
+              <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <rect width="800" height="900" fill="url(#g-brainL)"/>
+          <rect x="800" width="800" height="900" fill="url(#g-brainR)"/>
+          <g transform="translate(800 450)">
+            <g stroke="#22d3ee" stroke-width="1.4" fill="none" stroke-opacity="0.7">
+              <path d="M-10,-180 C-100,-180 -200,-130 -240,-50 C-260,30 -240,120 -180,180 C-130,210 -60,210 -10,180 Z"/>
+              <path d="M-180,-130 Q-200,-50 -180,30" stroke-opacity="0.4"/>
+              <path d="M-220,-30 Q-180,0 -130,-30" stroke-opacity="0.4"/>
+              <path d="M-200,80 Q-150,100 -100,80" stroke-opacity="0.4"/>
+            </g>
+            <g stroke="#22d3ee" stroke-width="1.4" fill="none" stroke-opacity="0.18">
+              <path d="M10,-180 C100,-180 200,-130 240,-50 C260,30 240,120 180,180 C130,210 60,210 10,180 Z"/>
+              <path d="M180,-130 Q200,-50 180,30"/>
+              <path d="M220,-30 Q180,0 130,-30"/>
+              <path d="M200,80 Q150,100 100,80"/>
+            </g>
+            <line x1="0" y1="-220" x2="0" y2="240" stroke="#fff" stroke-opacity="0.12" stroke-dasharray="3 8"/>
+            <g class="nodes-bright" fill="#22d3ee">
+              <circle cx="-150" cy="-100" r="3.5"/>
+              <circle cx="-100" cy="-50" r="3.5"/>
+              <circle cx="-180" cy="20" r="3.5"/>
+              <circle cx="-120" cy="60" r="3.5"/>
+              <circle cx="-80" cy="-130" r="3.5"/>
+              <circle cx="-50" cy="100" r="3.5"/>
+            </g>
+            <g stroke="#22d3ee" stroke-width="0.8" stroke-opacity="0.45" fill="none">
+              <line x1="-150" y1="-100" x2="-100" y2="-50"/>
+              <line x1="-100" y1="-50" x2="-80" y2="-130"/>
+              <line x1="-180" y1="20" x2="-120" y2="60"/>
+              <line x1="-120" y1="60" x2="-50" y2="100"/>
+              <line x1="-100" y1="-50" x2="-120" y2="60"/>
+            </g>
+            <g class="nodes-dim" fill="#22d3ee" fill-opacity="0.22">
+              <circle cx="150" cy="-100" r="3"/>
+              <circle cx="100" cy="-50" r="3"/>
+              <circle cx="180" cy="20" r="3"/>
+              <circle cx="120" cy="60" r="3"/>
+              <circle cx="80" cy="-130" r="3"/>
+              <circle cx="50" cy="100" r="3"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <div class="slide-inner">
+        <span class="eyebrow reveal">The problem</span>
+        <div class="stat-grid">
+          <div>
+            <div class="big-stat reveal">
+              <span data-count="1.9" data-format="oneDecimal">0.0</span><span style="color: var(--accent-2); -webkit-text-fill-color: var(--accent-2);">M</span>
+            </div>
+            <span class="big-stat-label reveal">neurons lost · per minute · untreated stroke</span>
+          </div>
+          <div>
+            <p class="body reveal">Time-to-treatment is the single largest determinant of outcome. The first signs appear on the face — but the people who notice them are rarely trained to act in time.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 3 — Insight ===================== -->
+    <section class="slide" data-i="2">
+      <div class="illustration ill-insight" aria-hidden="true">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="g-insight" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%"  stop-color="#22d3ee" stop-opacity="0.24"/>
+              <stop offset="50%" stop-color="#22d3ee" stop-opacity="0.0"/>
+              <stop offset="100%" stop-color="#00e5b4" stop-opacity="0.10"/>
+            </linearGradient>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#g-insight)"/>
+          <g transform="translate(1180 450)">
+            <ellipse rx="220" ry="290" stroke="#22d3ee" stroke-width="1" fill="none" stroke-opacity="0.22"/>
+            <line x1="0" y1="-300" x2="0" y2="300" stroke="#fff" stroke-opacity="0.12" stroke-dasharray="3 9"/>
+            <!-- Left side - bright/symmetric -->
+            <g stroke="#22d3ee" stroke-width="1" fill="none" stroke-opacity="0.6">
+              <path d="M-150,-120 Q-90,-140 -10,-120"/>
+              <ellipse cx="-85" cy="-55" rx="35" ry="12"/>
+              <path d="M-60,90 Q-30,110 0,100"/>
+              <path d="M-30,-50 L-30,80"/>
+            </g>
+            <!-- Right side - drooping/asymmetric -->
+            <g stroke="#22d3ee" stroke-width="1" fill="none" stroke-opacity="0.45">
+              <path d="M10,-115 Q90,-135 150,-105"/>
+              <ellipse cx="85" cy="-50" rx="35" ry="14"/>
+              <path d="M0,100 Q30,120 60,110" stroke-opacity="0.3"/>
+            </g>
+            <g class="landmarks" fill="#22d3ee">
+              <circle cx="-150" cy="-120" r="3"/>
+              <circle cx="-90" cy="-138" r="3"/>
+              <circle cx="-10" cy="-120" r="3"/>
+              <circle cx="-120" cy="-55" r="3"/>
+              <circle cx="-85" cy="-65" r="3"/>
+              <circle cx="-50" cy="-55" r="3"/>
+              <circle cx="-60" cy="90" r="3"/>
+              <circle cx="-30" cy="105" r="3"/>
+              <circle cx="0" cy="100" r="3"/>
+            </g>
+            <!-- Asymmetry indicator: dimmer right-side dots -->
+            <g fill="#00e5b4" fill-opacity="0.35">
+              <circle cx="10" cy="-115" r="3"/>
+              <circle cx="90" cy="-135" r="3"/>
+              <circle cx="150" cy="-105" r="3"/>
+              <circle cx="50" cy="-50" r="3"/>
+              <circle cx="85" cy="-60" r="3"/>
+              <circle cx="120" cy="-50" r="3"/>
+              <circle cx="0" cy="100" r="3"/>
+              <circle cx="30" cy="115" r="3"/>
+              <circle cx="60" cy="110" r="3"/>
+            </g>
+            <!-- Asymmetry callout arc -->
+            <path d="M30,-85 A20,20 0 0 1 60,-65" stroke="#00e5b4" stroke-width="1" stroke-opacity="0.6" fill="none"/>
+            <text x="75" y="-55" fill="#00e5b4" fill-opacity="0.65" font-family="ui-monospace, monospace" font-size="13" letter-spacing="2">ΔY</text>
+          </g>
+        </svg>
+      </div>
+      <div class="slide-inner">
+        <span class="eyebrow reveal">The insight</span>
+        <h2 class="h1" data-split>Faces betray neurology before words do.</h2>
+        <p class="body reveal">A millimeter of droop. A fraction of a second of asymmetric motion. With dense facial landmarks and learned features, these become measurable in real time — without specialized hardware.</p>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 4 — Solution / Pillars ===================== -->
+    <section class="slide" data-i="3">
+      <div class="slide-inner">
+        <span class="eyebrow reveal">What we built</span>
+        <h2 class="h2" data-split>A clinical-grade signal, from a webcam.</h2>
+        <div class="pillar-grid">
+          <div class="pillar reveal">
+            <h3>Real-Time Detection</h3>
+            <p>Per-frame landmark geometry plus learned features run at 30 FPS on commodity hardware — no GPU required.</p>
+            <span class="pillar-tag">Latency · ~33 ms</span>
+          </div>
+          <div class="pillar reveal">
+            <h3>Multimodal Fusion</h3>
+            <p>Geometric asymmetry, texture cues, and temporal motion are fused with attention-weighted, hard-negative-aware training.</p>
+            <span class="pillar-tag">FocalLoss · ArcFace</span>
+          </div>
+          <div class="pillar reveal">
+            <h3>Explainable Outputs</h3>
+            <p>Calibrated probabilities, per-region salience, and a temporally smoothed risk signal — readable, auditable, defensible.</p>
+            <span class="pillar-tag">Temperature · XAI</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 5 — Pipeline ===================== -->
+    <section class="slide" data-i="4">
+      <div class="slide-inner">
+        <span class="eyebrow reveal">Pipeline</span>
+        <h2 class="h2" data-split>Four stages, end to end.</h2>
+        <div class="pipeline">
+          <div class="stage reveal">
+            <div class="stage-num">01</div>
+            <h4>Capture</h4>
+            <p>Webcam feed, normalized, face-aligned, stabilized.</p>
+          </div>
+          <div class="stage reveal">
+            <div class="stage-num">02</div>
+            <h4>Landmark Geometry</h4>
+            <p>Dense landmarks vs the patient's neutral baseline.</p>
+          </div>
+          <div class="stage reveal">
+            <div class="stage-num">03</div>
+            <h4>Asymmetry Score</h4>
+            <p>Token-attention + SE blocks fuse to a calibrated probability.</p>
+          </div>
+          <div class="stage reveal">
+            <div class="stage-num">04</div>
+            <h4>Risk Signal</h4>
+            <p>Temporally smoothed, region-explained, decision-ready.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 6 — Architecture ===================== -->
+    <section class="slide" data-i="5">
+      <div class="slide-inner">
+        <span class="eyebrow reveal">Architecture</span>
+        <h2 class="h2" data-split>Multimodal fusion under the hood.</h2>
+        <div class="stack">
+          <div class="layer reveal">
+            <span class="layer-name">Input</span>
+            <span class="layer-content">RGB frame<span class="sep">·</span>Facial landmarks<span class="sep">·</span>Temporal window</span>
+          </div>
+          <div class="layer-arrow reveal">↓</div>
+          <div class="layer reveal">
+            <span class="layer-name">Encoders</span>
+            <span class="layer-content">CNN backbone<span class="sep">·</span>Landmark MLP<span class="sep">·</span>Motion encoder</span>
+          </div>
+          <div class="layer-arrow reveal">↓</div>
+          <div class="layer reveal">
+            <span class="layer-name">Fusion</span>
+            <span class="layer-content">Token Attention<span class="sep">·</span>Squeeze-and-Excitation</span>
+          </div>
+          <div class="layer-arrow reveal">↓</div>
+          <div class="layer reveal">
+            <span class="layer-name">Heads</span>
+            <span class="layer-content">FocalLoss<span class="sep">·</span>ArcFace<span class="sep">·</span>Hard-negative mining</span>
+          </div>
+          <div class="layer-arrow reveal">↓</div>
+          <div class="layer reveal">
+            <span class="layer-name">Post</span>
+            <span class="layer-content">Temperature calibration<span class="sep">·</span>Temporal smoothing<span class="sep">·</span>XAI</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 7 — Results ===================== -->
+    <section class="slide" data-i="6">
+      <div class="slide-inner">
+        <span class="eyebrow reveal">Where we are</span>
+        <h2 class="h2" data-split>Built fast. Built tight.</h2>
+        <div class="nums">
+          <div class="num-cell reveal">
+            <div class="num-value"><span data-count="0.92" data-format="twoDecimal">0.00</span></div>
+            <span class="num-label">F1 — target, V2 phase plan</span>
+          </div>
+          <div class="num-cell reveal">
+            <div class="num-value"><span data-count="30" data-format="int">0</span><span class="num-unit">FPS</span></div>
+            <span class="num-label">Real-time inference</span>
+          </div>
+          <div class="num-cell reveal">
+            <div class="num-value"><span data-count="33" data-format="int">0</span><span class="num-unit">ms</span></div>
+            <span class="num-label">Per-frame latency</span>
+          </div>
+          <div class="num-cell reveal">
+            <div class="num-value"><span data-count="0" data-format="int">0</span></div>
+            <span class="num-label">GPUs required</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 8 — Live ===================== -->
+    <section class="slide" data-i="7">
+      <div class="slide-inner">
+        <span class="eyebrow reveal">See it live</span>
+        <h2 class="h2" data-split>Two ways in.</h2>
+        <div class="live-row">
+          <a class="live-card reveal" href="../neuro-symmetry-mvp/index.html" target="_blank" rel="noopener">
+            <span class="live-tag">MVP</span>
+            <h3>The live demo</h3>
+            <p>A single-page webcam demo. Open it, look at the camera, see asymmetry surfaced in real time.</p>
+            <span class="live-link">
+              Launch demo
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="live-card reveal" href="http://localhost:3000/" target="_blank" rel="noopener">
+            <span class="live-tag">V2</span>
+            <h3>The full pipeline</h3>
+            <p>Multimodal fusion, calibration, and explainable outputs. Run <code>docker compose up</code> first.</p>
+            <span class="live-link">
+              Open V2 · localhost:3000
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 9 — Compliance ===================== -->
+    <section class="slide" data-i="8">
+      <div class="slide-inner">
+        <span class="eyebrow reveal">Path to clinic</span>
+        <h2 class="h2" data-split>Assistive today. Clinical tomorrow.</h2>
+        <div class="compl-grid">
+          <div class="compl-item reveal">
+            <div class="compl-status done" aria-label="Done">✓</div>
+            <div class="compl-text">
+              <h4>Assistive early-warning posture</h4>
+              <p>Positioned as decision support — not diagnosis. Disclaimer surfaced at every entry point.</p>
+            </div>
+          </div>
+          <div class="compl-item reveal">
+            <div class="compl-status done" aria-label="Done">✓</div>
+            <div class="compl-text">
+              <h4>Phase plan documented</h4>
+              <p>10-phase implementation plan from MVP to clinical-trial readiness.</p>
+            </div>
+          </div>
+          <div class="compl-item reveal">
+            <div class="compl-status todo" aria-label="To do">·</div>
+            <div class="compl-text">
+              <h4>FDA SaMD review</h4>
+              <p>Required for any clinical deployment in the United States.</p>
+            </div>
+          </div>
+          <div class="compl-item reveal">
+            <div class="compl-status todo" aria-label="To do">·</div>
+            <div class="compl-text">
+              <h4>HIPAA &amp; CE Mark</h4>
+              <p>Privacy, data-handling, and EU-market conformity reviews on the roadmap.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 10 — Closing ===================== -->
+    <section class="slide closing" data-i="9">
+      <div class="ambient" aria-hidden="true"></div>
+      <div class="illustration ill-closing" aria-hidden="true">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="g-close" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"  stop-color="#00e5b4" stop-opacity="0.18"/>
+              <stop offset="60%" stop-color="#22d3ee" stop-opacity="0.06"/>
+              <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#g-close)"/>
+          <g class="rings" stroke="#22d3ee" fill="none">
+            <circle cx="800" cy="450" r="120" stroke-opacity="0.32" stroke-width="1"/>
+            <circle cx="800" cy="450" r="240" stroke-opacity="0.20" stroke-width="1"/>
+            <circle cx="800" cy="450" r="380" stroke-opacity="0.13" stroke-width="1"/>
+            <circle cx="800" cy="450" r="540" stroke-opacity="0.08" stroke-width="1"/>
+            <circle cx="800" cy="450" r="720" stroke-opacity="0.05" stroke-width="1"/>
+          </g>
+          <path class="signal"
+                d="M0,450 L520,450 L555,450 L580,360 L610,560 L640,400 L675,490 L705,450 L1600,450"
+                stroke="#00e5b4" stroke-width="1.5" stroke-opacity="0.55" fill="none"/>
+        </svg>
+      </div>
+      <div class="slide-inner">
+        <h1 class="h1" data-split>Built for the seconds that matter.</h1>
+        <p class="meta reveal">© <span id="year"></span> Neuro-Symmetry · Assistive early-warning tool · Not a medical diagnostic device</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="dots" id="dots" aria-label="Slide navigation"></nav>
+  <button class="nav prev" id="prev" aria-label="Previous slide">‹</button>
+  <button class="nav next" id="next" aria-label="Next slide">›</button>
+  <div class="hint" id="hint">← →&nbsp;&nbsp;·&nbsp;&nbsp;Esc&nbsp;&nbsp;·&nbsp;&nbsp;F</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      gsap.defaults({ ease: 'power3.out', duration: 0.8 });
+
+      // ---------------------------------------------------------------
+      // DOM
+      // ---------------------------------------------------------------
+      const slides = Array.from(document.querySelectorAll('.slide'));
+      const total = slides.length;
+      const curEl = document.getElementById('cur');
+      const totEl = document.getElementById('tot');
+      const progressEl = document.getElementById('progress');
+      const dotsEl = document.getElementById('dots');
+      const prevBtn = document.getElementById('prev');
+      const nextBtn = document.getElementById('next');
+      const hint = document.getElementById('hint');
+      const yearEl = document.getElementById('year');
+
+      yearEl.textContent = new Date().getFullYear();
+      totEl.textContent = String(total).padStart(2, '0');
+
+      // ---------------------------------------------------------------
+      // Build dots
+      // ---------------------------------------------------------------
+      const dots = slides.map((_, i) => {
+        const d = document.createElement('button');
+        d.className = 'dot';
+        d.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+        d.addEventListener('click', () => goTo(i));
+        dotsEl.appendChild(d);
+        return d;
+      });
+
+      // ---------------------------------------------------------------
+      // Word-split helper (matches showcase)
+      // ---------------------------------------------------------------
+      function splitWords(el) {
+        const text = el.textContent.trim();
+        const words = text.split(/\s+/);
+        el.textContent = '';
+        const inners = [];
+        words.forEach((w, i) => {
+          const wrap = document.createElement('span');
+          wrap.className = 'word';
+          const inner = document.createElement('span');
+          inner.className = 'inner';
+          inner.textContent = w;
+          wrap.appendChild(inner);
+          el.appendChild(wrap);
+          inners.push(inner);
+          if (i < words.length - 1) el.appendChild(document.createTextNode(' '));
+        });
+        return inners;
+      }
+      document.querySelectorAll('[data-split]').forEach((el) => {
+        el._inners = splitWords(el);
+      });
+
+      // ---------------------------------------------------------------
+      // Counters (count-up on slide entry)
+      // ---------------------------------------------------------------
+      const formatters = {
+        int: (v) => Math.round(v).toString(),
+        oneDecimal: (v) => v.toFixed(1),
+        twoDecimal: (v) => v.toFixed(2),
+      };
+      function runCounters(slide) {
+        slide.querySelectorAll('[data-count]').forEach((el) => {
+          const target = parseFloat(el.dataset.count);
+          const fmt = formatters[el.dataset.format] || formatters.int;
+          if (prefersReduced) { el.textContent = fmt(target); return; }
+          const obj = { v: 0 };
+          gsap.to(obj, {
+            v: target,
+            duration: 1.2,
+            ease: 'power3.out',
+            onUpdate: () => { el.textContent = fmt(obj.v); }
+          });
+        });
+      }
+
+      // ---------------------------------------------------------------
+      // Per-slide entry timeline
+      // ---------------------------------------------------------------
+      function playSlide(idx) {
+        const slide = slides[idx];
+        const splits = slide.querySelectorAll('[data-split]');
+        const reveals = slide.querySelectorAll('.reveal');
+
+        // Reset states for replay
+        splits.forEach((el) => gsap.set(el._inners, { y: '110%' }));
+        gsap.set(reveals, { opacity: 0, y: 24 });
+
+        const tl = gsap.timeline({ delay: 0.15 });
+        splits.forEach((el, i) => {
+          tl.to(el._inners, { y: '0%', duration: 0.9, stagger: 0.045 }, i * 0.05);
+        });
+        if (reveals.length) {
+          tl.to(reveals, { opacity: 1, y: 0, duration: 0.7, stagger: 0.06 }, splits.length ? 0.25 : 0);
+        }
+        // Numeric counters
+        if (slide.querySelector('[data-count]')) {
+          tl.add(() => runCounters(slide), splits.length ? 0.3 : 0.1);
+        }
+      }
+
+      // ---------------------------------------------------------------
+      // Slide navigation
+      // ---------------------------------------------------------------
+      let current = 0;
+      let busy = false;
+
+      function updateChrome(idx) {
+        curEl.textContent = String(idx + 1).padStart(2, '0');
+        progressEl.style.width = ((idx + 1) / total * 100) + '%';
+        dots.forEach((d, i) => d.classList.toggle('is-active', i === idx));
+        prevBtn.disabled = idx === 0;
+        nextBtn.disabled = idx === total - 1;
+        // Hash sync without scroll
+        const h = '#' + (idx + 1);
+        if (location.hash !== h) history.replaceState(null, '', h);
+      }
+
+      function goTo(idx, instant) {
+        if (busy || idx === current || idx < 0 || idx >= total) return;
+        if (document.body.classList.contains('is-overview')) toggleOverview();
+        busy = true;
+
+        const out = slides[current];
+        const inn = slides[idx];
+
+        if (instant || prefersReduced) {
+          out.classList.remove('is-active');
+          inn.classList.add('is-active');
+          gsap.set(out, { opacity: 0, y: 0, filter: 'none' });
+          gsap.set(inn, { opacity: 1, y: 0, filter: 'none' });
+          current = idx;
+          updateChrome(idx);
+          playSlide(idx);
+          busy = false;
+          return;
+        }
+
+        // Outgoing
+        gsap.to(out, {
+          opacity: 0,
+          y: -24,
+          filter: 'blur(12px)',
+          duration: 0.5,
+          ease: 'power3.in',
+          onComplete: () => { out.classList.remove('is-active'); }
+        });
+
+        // Incoming
+        gsap.set(inn, { opacity: 0, y: 32, filter: 'blur(8px)' });
+        inn.classList.add('is-active');
+        gsap.to(inn, {
+          opacity: 1,
+          y: 0,
+          filter: 'blur(0px)',
+          duration: 0.7,
+          delay: 0.15,
+          ease: 'power3.out',
+          onStart: () => playSlide(idx),
+          onComplete: () => { busy = false; }
+        });
+
+        current = idx;
+        updateChrome(idx);
+      }
+
+      function next() { goTo(current + 1); }
+      function prev() { goTo(current - 1); }
+
+      prevBtn.addEventListener('click', prev);
+      nextBtn.addEventListener('click', next);
+
+      // ---------------------------------------------------------------
+      // Keyboard
+      // ---------------------------------------------------------------
+      let hintFaded = false;
+      function fadeHint() {
+        if (hintFaded) return;
+        hintFaded = true;
+        hint.classList.add('is-faded');
+      }
+      window.addEventListener('keydown', (e) => {
+        // Ignore inside inputs (none here, but defensive)
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+
+        switch (e.key) {
+          case 'ArrowRight':
+          case ' ':
+          case 'PageDown':
+          case 'n':
+            e.preventDefault(); fadeHint(); next(); break;
+          case 'ArrowLeft':
+          case 'PageUp':
+          case 'p':
+            e.preventDefault(); fadeHint(); prev(); break;
+          case 'Home':
+            e.preventDefault(); fadeHint(); goTo(0); break;
+          case 'End':
+            e.preventDefault(); fadeHint(); goTo(total - 1); break;
+          case 'Escape':
+            e.preventDefault(); fadeHint(); toggleOverview(); break;
+          case 'f':
+          case 'F':
+            e.preventDefault(); fadeHint(); toggleFullscreen(); break;
+        }
+      });
+
+      // ---------------------------------------------------------------
+      // Touch (swipe)
+      // ---------------------------------------------------------------
+      let tStart = null;
+      window.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) tStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }, { passive: true });
+      window.addEventListener('touchend', (e) => {
+        if (!tStart) return;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - tStart.x;
+        const dy = t.clientY - tStart.y;
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+          fadeHint();
+          dx < 0 ? next() : prev();
+        }
+        tStart = null;
+      }, { passive: true });
+
+      // ---------------------------------------------------------------
+      // Fullscreen
+      // ---------------------------------------------------------------
+      function toggleFullscreen() {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      }
+
+      // ---------------------------------------------------------------
+      // Overview mode (thumbnail grid)
+      // ---------------------------------------------------------------
+      function computeOverviewScale() {
+        const w = window.innerWidth;
+        const cols = w > 900 ? 3 : (w > 600 ? 2 : 1);
+        // padding 2rem (32px) each side, gap 1.25rem (20px)
+        const pad = 32 * 2;
+        const gap = 20 * (cols - 1);
+        const colWidth = (w - pad - gap) / cols;
+        const scale = colWidth / 1600;
+        document.documentElement.style.setProperty('--ov-scale', scale.toString());
+      }
+      function toggleOverview() {
+        const on = !document.body.classList.contains('is-overview');
+        document.body.classList.toggle('is-overview', on);
+        if (on) {
+          computeOverviewScale();
+          window.addEventListener('resize', computeOverviewScale);
+          slides.forEach((s, i) => {
+            s._ovHandler = () => goTo(i);
+            s.addEventListener('click', s._ovHandler);
+          });
+        } else {
+          window.removeEventListener('resize', computeOverviewScale);
+          slides.forEach((s) => {
+            if (s._ovHandler) s.removeEventListener('click', s._ovHandler);
+            s._ovHandler = null;
+          });
+          window.scrollTo(0, 0);
+        }
+      }
+
+      // ---------------------------------------------------------------
+      // Hash sync
+      // ---------------------------------------------------------------
+      window.addEventListener('hashchange', () => {
+        const idx = parseInt(location.hash.slice(1), 10) - 1;
+        if (!isNaN(idx) && idx !== current) goTo(idx);
+      });
+
+      // ---------------------------------------------------------------
+      // Initial
+      // ---------------------------------------------------------------
+      // Pre-hide all reveals/inners
+      gsap.set(document.querySelectorAll('.reveal'), { opacity: 0, y: 24 });
+      // (Inner spans already at translateY(110%) via CSS)
+
+      const initialHash = parseInt(location.hash.slice(1), 10);
+      const startIdx = (!isNaN(initialHash) && initialHash >= 1 && initialHash <= total) ? initialHash - 1 : 0;
+      if (startIdx !== 0) {
+        slides[0].classList.remove('is-active');
+        slides[startIdx].classList.add('is-active');
+        current = startIdx;
+      }
+      updateChrome(current);
+      // Play first slide on load (small delay so fonts settle)
+      setTimeout(() => playSlide(current), 80);
+
+      // Auto-fade hint after 6s
+      setTimeout(fadeHint, 6000);
+    })();
+  </script>
+</body>
+</html>
