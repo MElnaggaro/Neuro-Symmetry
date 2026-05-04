@@ -1,22 +1,64 @@
 /* ── Neuro-Symmetry Shared Design System ─────────────────────────────────────
-   Loaded by mirror.html, game.html, sentinel.html, tracker.html.
-   Contains: design tokens, reset, body base, nav, buttons, side-selectors,
-             rationale banner, camera-error overlay, focus ring.
+   Loaded by mirror.html, game.html, sentinel.html.
+   Tracker now lives in the React SPA at #/tracker.
+
+   IMPORTANT: keep the :root tokens below in sync with src/config/palette.ts.
+   The lint:tokens script greps for SHARED_CSS_TOKEN_HASH below to verify
+   the satellite stylesheet was not silently forked from the SPA palette.
+
+   SHARED_CSS_TOKEN_HASH=v2:dark+cyan
    ─────────────────────────────────────────────────────────────────────────── */
 
-/* ── Design tokens ─────────────────────────────────────────────────────────── */
+/* ── Design tokens (mirrored from src/config/palette.ts) ──────────────────── */
 :root {
-  --bg:      #0f172a;
-  --surface: #1e293b;
-  --panel:   #1a2535;
-  --cyan:    #22d3ee;
+  /* Base + surface — match Tailwind bg.* in tailwind.config.ts */
+  --bg:        #040b16;
+  --surface:   #070f1e;
+  --panel:     #0a1628;
+
+  /* Neutral borders — match neu.* in tailwind.config.ts */
+  --border:        #0f2040;
+  --border-light:  #1a3a5c;
+
+  /* Brand */
+  --cyan:    #06b6d4;
+  --cyan-2:  #22d3ee;
   --blue:    #3b82f6;
-  --txt:     #e2e8f0;
-  --muted:   #64748b;
-  --border:  #1e3a52;
-  --green:   #34d399;
-  --amber:   #f59e0b;
-  --red:     #f87171;
+
+  /* Risk semantics — match RISK_PALETTE in palette.ts */
+  --risk-normal:    #10b981;
+  --risk-mild:      #f59e0b;
+  --risk-high:      #f97316;
+  --risk-critical:  #ef4444;
+
+  /* Text */
+  --txt:    #e2e8f0;
+  --muted:  #64748b;
+
+  /* Legacy aliases for existing class names */
+  --green:  #34d399;
+  --amber:  #f59e0b;
+  --red:    #f87171;
+
+  /* Glassmorphism — match GLASS in palette.ts */
+  --glass-bg:           rgba(10, 22, 44, 0.78);
+  --glass-blur:         14px;
+  --glass-inner-border: rgba(34, 211, 238, 0.08);
+  --glass-shadow:       0 8px 32px rgba(0, 0, 0, 0.45),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* Type scale */
+  --t-display: 28px;
+  --t-h1:      18px;
+  --t-h2:      14px;
+  --t-body:    12px;
+  --t-label:   10px;
+  --t-micro:    9px;
+
+  /* Letter spacing */
+  --ls-wide:  0.08em;
+  --ls-wider: 0.18em;
+  --ls-cyber: 0.30em;
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
@@ -25,18 +67,84 @@
 /* ── Body base ─────────────────────────────────────────────────────────────── */
 body {
   background: var(--bg);
-  color: var(--txt);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color:      var(--txt);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size:  var(--t-body);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Glass utilities (mirror SPA .glass-card / .glass-inset) ──────────────── */
+.glass-card {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.glass-inset { position: relative; }
+.glass-inset::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 180deg,
+    rgba(34, 211, 238, 0.0) 0deg,
+    rgba(34, 211, 238, 0.35) 80deg,
+    rgba(34, 211, 238, 0.0) 200deg,
+    rgba(34, 211, 238, 0.20) 320deg,
+    rgba(34, 211, 238, 0.0) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  opacity: 0.6;
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────────────────── */
+@keyframes ns-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ns-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes ns-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.35); }
+  50%      { box-shadow: 0 0 24px 4px rgba(6, 182, 212, 0.15); }
+}
+
+.anim-fade-up   { animation: ns-fade-up   0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-pulse-glow { animation: ns-pulse-glow 2.4s ease-in-out infinite; }
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(15, 32, 64, 0.45) 0%,
+    rgba(26, 58, 92, 0.65) 50%,
+    rgba(15, 32, 64, 0.45) 100%
+  );
+  background-size: 200% 100%;
+  animation: ns-shimmer 1.6s linear infinite;
+  border-radius: 6px;
 }
 
 /* ── Navigation ────────────────────────────────────────────────────────────── */
 .ns-nav {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: .7rem 1.25rem;
+  padding: 0.7rem 1.25rem;
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -46,70 +154,82 @@ body {
 .ns-nav a {
   color: var(--muted);
   text-decoration: none;
-  font-size: .75rem;
+  font-size: var(--t-label);
   font-weight: 600;
-  letter-spacing: .08em;
-  transition: color .15s;
+  letter-spacing: var(--ls-wide);
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 .ns-nav a:hover,
-.ns-nav a.active { color: var(--cyan); }
+.ns-nav a.active {
+  color: var(--cyan-2);
+  border-color: var(--border);
+  background: rgba(34, 211, 238, 0.06);
+}
 .ns-nav .ns-title {
-  color: var(--cyan);
-  font-size: .82rem;
+  color: var(--cyan-2);
+  font-size: 0.82rem;
   font-weight: 800;
-  letter-spacing: .15em;
+  letter-spacing: var(--ls-cyber);
   margin-left: auto;
+  text-transform: uppercase;
 }
 
 /* ── Buttons ───────────────────────────────────────────────────────────────── */
 .btn {
-  padding: .6rem 1.4rem;
-  border-radius: .5rem;
-  font-size: .78rem;
+  padding: 0.6rem 1.4rem;
+  border-radius: 0.5rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: .07em;
+  letter-spacing: var(--ls-wide);
   cursor: pointer;
   border: none;
-  transition: filter .15s, transform .1s;
+  transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
 }
 .btn:hover  { filter: brightness(1.12); }
-.btn:active { transform: scale(.97); }
+.btn:active { transform: scale(0.97); }
 
-.btn-primary { background: linear-gradient(135deg, #1d4ed8, #0891b2); color: #bfdbfe; }
+.btn-primary {
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+  color: #bfdbfe;
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.25);
+}
 
 .btn-ghost {
   background: var(--panel);
   border: 1px solid var(--border);
   color: var(--muted);
 }
-.btn-ghost:hover { color: var(--txt); border-color: var(--cyan); }
+.btn-ghost:hover { color: var(--txt); border-color: var(--cyan-2); }
 
 .btn-outline {
   background: transparent;
-  color: var(--cyan);
-  border: 1px solid var(--cyan);
+  color: var(--cyan-2);
+  border: 1px solid var(--cyan-2);
 }
-.btn-outline:hover { background: rgba(34,211,238,.1); }
+.btn-outline:hover { background: rgba(34, 211, 238, 0.1); }
 
 /* ── Side selector (mirror + game) ────────────────────────────────────────── */
 .side-btn,
 .side-pill {
-  padding: .28rem .65rem;
-  border-radius: .4rem;
-  font-size: .7rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 0.4rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: .08em;
+  letter-spacing: var(--ls-wide);
   cursor: pointer;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--muted);
-  transition: all .15s;
+  transition: all 0.15s;
 }
 .side-btn.active,
 .side-pill.active {
-  background: rgba(34,211,238,.15);
-  border-color: var(--cyan);
-  color: var(--cyan);
+  background: rgba(34, 211, 238, 0.15);
+  border-color: var(--cyan-2);
+  color: var(--cyan-2);
 }
 
 /* ── Rationale banner (mirror + sentinel) ──────────────────────────────────── */
@@ -118,10 +238,10 @@ body {
   max-width: 680px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--cyan);
-  border-radius: .5rem;
-  padding: .875rem 1rem;
-  font-size: .8rem;
+  border-left: 3px solid var(--cyan-2);
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  font-size: 0.8rem;
   color: var(--muted);
   line-height: 1.55;
 }
@@ -132,12 +252,16 @@ body {
   position: absolute; inset: 0;
   display: none;
   align-items: center; justify-content: center;
-  background: rgba(15,23,42,.88);
+  background: rgba(4, 11, 22, 0.88);
   color: var(--red);
-  font-size: .875rem;
+  font-size: 0.875rem;
   text-align: center;
   padding: 1.5rem;
 }
 
-/* ── Focus ring ────────────────────────────────────────────────────────────── */
-:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+/* ── Focus ring (cyan, matches SPA .ring-cyber) ───────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(6, 182, 212, 0.85);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.18);
+}

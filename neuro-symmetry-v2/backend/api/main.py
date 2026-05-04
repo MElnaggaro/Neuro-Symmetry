@@ -28,6 +28,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSock
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from ai.calibrate_baseline import BaselineCalibrator, UserBaseline
 from backend.api.change_detection import ChangeDetector
 from backend.api.clinical_rules import RiskLevel, apply_fast_logic
 from backend.api.confirmation_layer import ConfirmationLayer, ConfirmationState
@@ -159,6 +160,7 @@ def _run_pipeline(
     frame_bgr:       np.ndarray,
     session:         _SessionState,
     quality_checker: Optional["InputQualityChecker"] = None,
+    baseline:        Optional[UserBaseline] = None,
 ) -> AnalysisResponse:
     """
     Execute the image-analysis pipeline for one frame.
@@ -202,6 +204,13 @@ def _run_pipeline(
     trajectory: Trajectory = session.trajectory_engine.update(score)
     risk_level: RiskLevel = apply_fast_logic(decision.class_id, trajectory.value)
 
+    # Personal anomaly: deviation from this user's calibrated baseline (z-score
+    # mean over the 50-D feature vector). Replaces the change-detector z-score
+    # when a baseline is available so the displayed anomaly is personalised.
+    personal_anomaly: Optional[float] = (
+        baseline.anomaly_score(features) if baseline is not None else None
+    )
+
     session.confirmation.update(decision.class_id)
     alert = session.confirmation.state == ConfirmationState.CONFIRMED
 
@@ -236,7 +245,10 @@ def _run_pipeline(
         confidence=round(decision.confidence, 4),
         probabilities=[round(p, 4) for p in decision.probabilities],
         symmetry_score=round(score, 4),
-        anomaly_score=round(change_event.z_score, 4) if change_event else None,
+        anomaly_score=(
+            round(personal_anomaly, 4) if personal_anomaly is not None
+            else (round(change_event.z_score, 4) if change_event else None)
+        ),
         risk_level=risk_level.value,
         trajectory=trajectory.value,
         affected_side=affected_side,
@@ -304,8 +316,10 @@ async def stream(ws: WebSocket) -> None:
     """
     await ws.accept()
     session = _SessionState()
-    # Calibration state for this connection
-    calibration_frames: list[np.ndarray] = []
+    # Calibration state for this connection. We accumulate FEATURE VECTORS
+    # (not raw frames) because the baseline z-score lives in feature space.
+    calibrator = BaselineCalibrator(user_id=f"ws-{id(ws):x}")
+    user_baseline: Optional[UserBaseline] = None
     calibration_min = _settings.session.min_calib_frames
     # Per-connection quality checker with independent blur-streak state
     ws_quality_checker = _state.quality_checker.__class__(get_settings().quality)
@@ -318,7 +332,8 @@ async def stream(ws: WebSocket) -> None:
             if mtype == "reset":
                 session.reset()
                 ws_quality_checker.reset()
-                calibration_frames.clear()
+                calibrator.reset()
+                user_baseline = None
                 await ws.send_json({"status": "reset"})
                 continue
 
@@ -337,14 +352,58 @@ async def stream(ws: WebSocket) -> None:
                     await ws.send_json({"error": "could not decode image"})
                     continue
 
-                calibration_frames.append(frame)
-                ready = len(calibration_frames) >= calibration_min
+                # Real calibration: run landmark detection + quality gate, then
+                # accumulate the 50-D feature vector. Frames where the face is
+                # missing or the quality is unusable do NOT count toward the
+                # required minimum — otherwise a baseline could be built from
+                # blurry / faceless frames and corrupt the personal z-score.
+                if _state.landmark_engine is None:
+                    await ws.send_json({"error": "landmark engine not available"})
+                    continue
+
+                lm_result = _state.landmark_engine.process(frame)
+                quality = ws_quality_checker.check(frame, lm_result)
+                if not quality.is_usable or lm_result is None:
+                    await ws.send_json({
+                        "type": "calibrate",
+                        "frames_recorded": calibrator.n_samples,
+                        "ready": False,
+                        "min_frames": calibration_min,
+                        "message": (
+                            f"Skipped frame ({quality.reason or 'no face'}); "
+                            f"hold steady — {calibrator.n_samples}/{calibration_min}"
+                        ),
+                    })
+                    continue
+
+                features = extract_features(lm_result, frame)
+                calibrator.record(features)
+
+                ready = calibrator.n_samples >= calibration_min
+                if ready and user_baseline is None:
+                    try:
+                        user_baseline = calibrator.compute()
+                        _log.info(
+                            "Personal baseline ready (n=%d, mean‖μ‖=%.3f).",
+                            calibrator.n_samples,
+                            float(np.linalg.norm(user_baseline.mean)),
+                        )
+                    except RuntimeError as exc:
+                        # Should never happen now (n_samples >= calibration_min
+                        # and _MIN_SAMPLES are both checked), but log just in case.
+                        _log.warning("Baseline compute failed: %s", exc)
+                        ready = False
+
                 await ws.send_json({
                     "type": "calibrate",
-                    "frames_recorded": len(calibration_frames),
+                    "frames_recorded": calibrator.n_samples,
                     "ready": ready,
                     "min_frames": calibration_min,
-                    "message": "Baseline ready" if ready else f"Recording {len(calibration_frames)}/{calibration_min}",
+                    "message": (
+                        "Baseline ready"
+                        if ready
+                        else f"Recording {calibrator.n_samples}/{calibration_min}"
+                    ),
                 })
                 continue
 
@@ -368,7 +427,7 @@ async def stream(ws: WebSocket) -> None:
                 await ws.send_json({"error": "could not decode image"})
                 continue
 
-            response = _run_pipeline(frame, session, ws_quality_checker)
+            response = _run_pipeline(frame, session, ws_quality_checker, user_baseline)
             payload = response.model_dump()
             payload["frame"] = session.frame_count
             await ws.send_json(payload)

@@ -29,6 +29,61 @@
     -webkit-backdrop-filter: blur(12px);
   }
 
+  /* Glassmorphism — clinical-grade panel surface. */
+  .glass-card {
+    background-color: rgba(10, 22, 44, 0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  /* 1px conic inner border (cyan → transparent) for elevated cards. */
+  .glass-inset {
+    position: relative;
+  }
+  .glass-inset::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from 180deg,
+      rgba(34, 211, 238, 0.0) 0deg,
+      rgba(34, 211, 238, 0.35) 80deg,
+      rgba(34, 211, 238, 0.0) 200deg,
+      rgba(34, 211, 238, 0.20) 320deg,
+      rgba(34, 211, 238, 0.0) 360deg
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    opacity: 0.6;
+  }
+
+  /* Cyan focus ring. */
+  .ring-cyber:focus-visible {
+    outline: 2px solid rgba(6, 182, 212, 0.85);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.18);
+  }
+
+  /* Shimmer skeleton fill. */
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(15, 32, 64, 0.45) 0%,
+      rgba(26, 58, 92, 0.65) 50%,
+      rgba(15, 32, 64, 0.45) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+
   /* Risk-level dynamic border colors set via CSS vars */
   .risk-border-normal   { --risk-border: #10b981; --risk-glow: rgba(16,185,129,0.2); }
   .risk-border-mild     { --risk-border: #f59e0b; --risk-glow: rgba(245,158,11,0.25); }

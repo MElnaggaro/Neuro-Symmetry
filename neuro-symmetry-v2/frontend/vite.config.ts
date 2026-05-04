@@ -2,8 +2,35 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
+// Redirect the legacy `/tracker.html` URL to the new in-SPA route. The static
+// file is gone, so without this middleware bookmarks would 404. Runs in dev
+// (vite serve) and preview (vite preview).
+const trackerRedirect = {
+  name: "tracker-html-redirect",
+  configureServer(server: import("vite").ViteDevServer) {
+    server.middlewares.use((req, res, next) => {
+      if (req.url === "/tracker.html" || req.url?.startsWith("/tracker.html?")) {
+        res.writeHead(301, { Location: "/#/tracker" });
+        res.end();
+        return;
+      }
+      next();
+    });
+  },
+  configurePreviewServer(server: import("vite").PreviewServer) {
+    server.middlewares.use((req, res, next) => {
+      if (req.url === "/tracker.html" || req.url?.startsWith("/tracker.html?")) {
+        res.writeHead(301, { Location: "/#/tracker" });
+        res.end();
+        return;
+      }
+      next();
+    });
+  },
+};
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), trackerRedirect],
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },

@@ -107,3 +107,38 @@ export const APP_CONFIG = {
   /** Throttle to ~6–7 fps toward the backend. */
   SEND_INTERVAL_MS:       150,
 } as const;
+
+// ── Type scale ────────────────────────────────────────────────────────────────
+// Pairs of [size, lineHeight] consumed by tailwind.config.ts via `fontSize`.
+export const TYPE_SCALE = {
+  display: ["28px", "1.1"],
+  h1:      ["18px", "1.25"],
+  h2:      ["14px", "1.35"],
+  body:    ["12px", "1.5"],
+  label:   ["10px", "1.4"],
+  micro:   ["9px",  "1.3"],
+} as const;
+
+export const LETTER_SPACING = {
+  wide:  "0.08em",
+  wider: "0.18em",
+  cyber: "0.3em",
+} as const;
+
+// Glassmorphism tokens used by the .glass-card / .glass-inset utilities.
+export const GLASS = {
+  blur:        "14px",
+  bg:          "rgba(10,22,44,0.78)",
+  innerBorder: "rgba(34,211,238,0.08)",
+  shadow:      "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)",
+} as const;
+
+// Motion: durations in ms; easing curves as cubic-bezier control points.
+export const MOTION = {
+  fast:    120,
+  base:    200,
+  slow:    400,
+  gauge:   600,
+  ease:    [0.22, 0.61, 0.36, 1],
+  easeOut: [0.16, 1,    0.30, 1],
+} as const;

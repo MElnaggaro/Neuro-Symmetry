@@ -7,6 +7,11 @@ interface CardProps {
   style?:     CSSProperties;
   /** When true the card expands to fill remaining height. */
   flex?:      boolean;
+  /**
+   * Visual emphasis. `elevated` adds a 1px conic-gradient inner border
+   * (cyan→transparent) to mark hero cards like the gauge or video frame.
+   */
+  tone?:      "default" | "elevated";
 }
 
 /**
@@ -14,7 +19,7 @@ interface CardProps {
  * Uses Framer Motion's layout engine so sibling cards animate
  * smoothly when the XAI breakdown changes height.
  */
-export function Card({ children, className = "", style, flex = false }: CardProps) {
+export function Card({ children, className = "", style, flex = false, tone = "default" }: CardProps) {
   return (
     <motion.div
       layout
@@ -24,13 +29,14 @@ export function Card({ children, className = "", style, flex = false }: CardProp
         "border border-neu-border",
         "shadow-card",
         "px-4 py-[14px]",
+        tone === "elevated" ? "glass-inset" : "",
         flex ? "flex-1 min-h-0" : "",
         className,
       ].join(" ")}
       style={style}
     >
       {/* Top shimmer line */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent pointer-events-none" />
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.10] to-transparent pointer-events-none" />
       {children}
     </motion.div>
   );

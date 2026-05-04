@@ -1,6 +1,6 @@
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
-  ReferenceLine, ResponsiveContainer, CartesianGrid,
+  ReferenceLine, ReferenceArea, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import type { TrajectoryState, HistoryPoint } from "@/types/analysis";
 import { TRAJECTORY_GRAPH_COLOR } from "@/config/palette";
@@ -9,12 +9,33 @@ import { TRAJECTORY_GRAPH_COLOR } from "@/config/palette";
 
 interface TooltipProps { active?: boolean; payload?: { value: number }[]; label?: string | number }
 
+function riskFromScore(s: number): { label: string; color: string } {
+  if (s >= 0.8) return { label: "NORMAL",    color: "#34d399" };
+  if (s >= 0.6) return { label: "MILD",      color: "#fbbf24" };
+  if (s >= 0.4) return { label: "HIGH RISK", color: "#fb923c" };
+  return            { label: "CRITICAL",  color: "#f87171" };
+}
+
 function GraphTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length) return null;
+  const v    = payload[0].value;
+  const risk = riskFromScore(v);
   return (
-    <div className="bg-[rgba(10,22,40,0.95)] border border-neu-borderLight rounded-lg px-3 py-2 text-[11px] glass">
-      <div className="text-slate-500 mb-1">Frame {label}</div>
-      <div className="text-slate-200 font-bold">{payload[0].value.toFixed(4)}</div>
+    <div className="glass-card border border-neu-borderLight rounded-lg px-3 py-2 text-[11px] min-w-[120px]">
+      <div className="text-micro text-slate-500 tracking-cyber mb-1">FRAME {label}</div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-slate-200 font-bold tabular-nums">{(v * 100).toFixed(1)}%</span>
+        <span
+          className="text-[8px] font-bold px-1.5 py-[1px] rounded border tracking-cyber"
+          style={{
+            color:           risk.color,
+            borderColor:     `${risk.color}55`,
+            backgroundColor: `${risk.color}1a`,
+          }}
+        >
+          {risk.label}
+        </span>
+      </div>
     </div>
   );
 }
@@ -42,12 +63,18 @@ export default function ScoreGraph({ history, trajectory }: ScoreGraphProps) {
 
         <CartesianGrid stroke="#0d1f35" strokeDasharray="3 6" vertical={false} />
 
+        {/* Risk-zone shading. */}
+        <ReferenceArea y1={0.0} y2={0.4} fill="#ef4444" fillOpacity={0.06} />
+        <ReferenceArea y1={0.4} y2={0.6} fill="#f97316" fillOpacity={0.05} />
+        <ReferenceArea y1={0.6} y2={0.8} fill="#f59e0b" fillOpacity={0.04} />
+        <ReferenceArea y1={0.8} y2={1.0} fill="#10b981" fillOpacity={0.04} />
+
         <XAxis dataKey="frame" tick={{ fill: "#334155", fontSize: 9 }}
           tickLine={false} axisLine={{ stroke: "#0d1f35" }} interval="preserveStartEnd" />
         <YAxis domain={[0, 1]} ticks={[0, 0.5, 1.0]}
           tick={{ fill: "#334155", fontSize: 9 }} tickLine={false} axisLine={false} />
 
-        <Tooltip content={<GraphTooltip />} />
+        <Tooltip content={<GraphTooltip />} cursor={{ stroke: "#22d3ee", strokeOpacity: 0.4, strokeDasharray: "2 4" }} />
 
         <ReferenceLine y={0.75} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1}
           label={{ value: "Mild",   fill: "#f59e0b", fontSize: 8, position: "insideTopRight", offset: 4 }} />

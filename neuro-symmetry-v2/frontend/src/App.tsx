@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence }                            from "framer-motion";
-import { Wifi, WifiOff, RefreshCw, Target, Activity, AlertTriangle } from "lucide-react";
+import { Wifi, WifiOff, RefreshCw, Target, AlertTriangle } from "lucide-react";
 
 import PredictiveTriage                from "@/modules/PredictiveTriage";
 import { useWebSocket }                from "@/hooks/useWebSocket";
@@ -14,6 +14,12 @@ import TrajectoryLabel                 from "@/components/panels/TrajectoryLabel
 import SymmetryGauge                   from "@/components/panels/SymmetryGauge";
 import ScoreGraph                      from "@/components/panels/ScoreGraph";
 import XAIBreakdown                    from "@/components/panels/XAIBreakdown";
+import { EmptyState }                  from "@/components/ui/EmptyState";
+import { SkeletonGauge, SkeletonGraph, SkeletonXAI } from "@/components/ui/Skeleton";
+import { toastInfo, toastSuccess, toastError, toastCalibration } from "@/utils/toast";
+import { AnimatedLogo }                from "@/components/ui/AnimatedLogo";
+import { CalibrationRing }             from "@/components/ui/CalibrationRing";
+import { useCommands }                 from "@/hooks/useCommands";
 import logger                          from "@/utils/logger";
 import { clearCanvas, drawBiometricOverlay } from "@/utils/renderer";
 import { APP_CONFIG, VIDEO_CONFIG }    from "@/config";
@@ -28,8 +34,47 @@ const NAV_LINKS = [
   { href: "/sentinel.html", label: "Sentinel"    },
   { href: "/mirror.html",   label: "Mirror"      },
   { href: "/game.html",     label: "Face-Joypad" },
-  { href: "/tracker.html",  label: "Tracker"     },
+  { href: "#/tracker",      label: "Tracker"     },
 ] as const;
+
+// Tracker reads `ns_assessments` for session history. Map the live-app risk
+// level to the class strings the Tracker badges expect.
+const ASSESSMENTS_KEY = "ns_assessments";
+const ASSESSMENT_FLUSH_MS = 3000;
+const RISK_TO_CLASS: Record<RiskLevel, string> = {
+  NORMAL:    "Normal",
+  MILD:      "Mild",
+  HIGH_RISK: "High Risk",
+  CRITICAL:  "Critical",
+};
+
+type StoredAssessment = {
+  date:             string;
+  type:             "live";
+  source:           "main_app";
+  session_id:       string;
+  class:            string;
+  probability:      number | null;
+  symmetry_score:   number;
+  frames:           number;
+  game_activations: null;
+};
+
+function upsertAssessment(record: StoredAssessment): void {
+  try {
+    const raw  = localStorage.getItem(ASSESSMENTS_KEY);
+    const list = raw ? (JSON.parse(raw) as StoredAssessment[]) : [];
+    const idx  = list.findIndex(
+      (e) => (e as StoredAssessment).session_id === record.session_id,
+    );
+    if (idx >= 0) list[idx] = record;
+    else          list.push(record);
+    if (list.length > 500) list.splice(0, list.length - 500);
+    localStorage.setItem(ASSESSMENTS_KEY, JSON.stringify(list));
+  } catch {
+    // Quota or parse errors: drop silently — the tracker still has older data.
+  }
+}
 
 const RISK_VIDEO_CLASS: Record<RiskLevel, string> = {
   NORMAL:    "risk-border-normal",
@@ -39,6 +84,8 @@ const RISK_VIDEO_CLASS: Record<RiskLevel, string> = {
 };
 
 const ELEVATED_RISK: ReadonlySet<RiskLevel> = new Set(["MILD", "HIGH_RISK", "CRITICAL"]);
+
+const RISK_RANK: Record<RiskLevel, number> = { NORMAL: 0, MILD: 1, HIGH_RISK: 2, CRITICAL: 3 };
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
@@ -70,11 +117,47 @@ export default function App() {
 
   useEffect(() => { logger.info("WebSocket", `status: ${wsStatus}`); }, [wsStatus]);
 
+  // Toast on WebSocket connect/disconnect transitions, but skip the very first
+  // "disconnected" mount value to avoid noise on initial load.
+  const prevWsStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevWsStatusRef.current;
+    prevWsStatusRef.current = wsStatus;
+    if (prev === null) return;
+    if (wsStatus === "connected" && prev !== "connected") {
+      toastSuccess("Stream connected");
+    } else if (wsStatus === "disconnected" && prev === "connected") {
+      toastInfo("Stream disconnected");
+    } else if (wsStatus === "error") {
+      toastError("Stream error — check the backend");
+    }
+  }, [wsStatus]);
+
   useEffect(() => {
     if (!lastCalib) return;
     setCalibCount(lastCalib.frames_recorded);
     if (lastCalib.ready) { setCalibReady(true); setCalibMode(false); }
   }, [lastCalib]);
+
+  // Calibration toasts: loading while in calibMode, success when ready.
+  const wasCalibModeRef = useRef(false);
+  const wasCalibReadyRef = useRef(false);
+  useEffect(() => {
+    if (calibMode && !wasCalibModeRef.current) toastCalibration.start();
+    if (!calibMode && wasCalibModeRef.current && !calibReady) toastCalibration.cancel();
+    wasCalibModeRef.current = calibMode;
+  }, [calibMode, calibReady]);
+  useEffect(() => {
+    if (calibReady && !wasCalibReadyRef.current) toastCalibration.done();
+    wasCalibReadyRef.current = calibReady;
+  }, [calibReady]);
+
+  // Rolling session aggregate persisted to localStorage so the Tracker page
+  // (`#/tracker`) can show data from the main live-analysis app, not just
+  // from the Sentinel/Game pages.
+  const sessionIdRef    = useRef<string | null>(null);
+  const sessionAggRef   = useRef({ sum: 0, count: 0, peakRisk: 0, peakConf: 0, lastClass: "" });
+  const lastFlushRef    = useRef<number>(0);
 
   useEffect(() => {
     const s = lastResult?.symmetry_score;
@@ -85,6 +168,38 @@ export default function App() {
       const next: HistoryPoint[] = [...h, { frame: (h.length > 0 ? h[h.length - 1].frame : 0) + 1, score: s }];
       return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
     });
+
+    // ── Tracker persistence (throttled upsert) ──────────────────────────────
+    if (sessionIdRef.current === null) {
+      sessionIdRef.current = `live-${Date.now()}`;
+    }
+    const agg     = sessionAggRef.current;
+    const risk    = (lastResult?.risk_level ?? "NORMAL") as RiskLevel;
+    const riskNum = RISK_RANK[risk];
+    agg.sum   += s;
+    agg.count += 1;
+    if (riskNum >= agg.peakRisk) {
+      agg.peakRisk  = riskNum;
+      agg.lastClass = RISK_TO_CLASS[risk];
+    }
+    const conf = lastResult?.confidence ?? 0;
+    if (conf > agg.peakConf) agg.peakConf = conf;
+
+    const now = performance.now();
+    if (now - lastFlushRef.current >= ASSESSMENT_FLUSH_MS) {
+      lastFlushRef.current = now;
+      upsertAssessment({
+        date:             new Date().toISOString(),
+        type:             "live",
+        source:           "main_app",
+        session_id:       sessionIdRef.current,
+        class:            agg.lastClass || "Normal",
+        probability:      agg.peakConf || null,
+        symmetry_score:   agg.sum / agg.count,
+        frames:           agg.count,
+        game_activations: null,
+      });
+    }
   }, [lastResult]);
 
   // ── Camera initialisation ──────────────────────────────────────────────────
@@ -136,16 +251,97 @@ export default function App() {
     if (ctx) clearCanvas(ctx, canvas.width, canvas.height);
   }, [trackingQuality, meshRef]);
 
+  // Final flush of the in-progress session so it survives a tab close /
+  // navigation away even if the throttle window has not elapsed.
+  const flushSession = useCallback(() => {
+    const id  = sessionIdRef.current;
+    const agg = sessionAggRef.current;
+    if (id === null || agg.count === 0) return;
+    upsertAssessment({
+      date:             new Date().toISOString(),
+      type:             "live",
+      source:           "main_app",
+      session_id:       id,
+      class:            agg.lastClass || "Normal",
+      probability:      agg.peakConf || null,
+      symmetry_score:   agg.sum / agg.count,
+      frames:           agg.count,
+      game_activations: null,
+    });
+  }, []);
+
+  useEffect(() => {
+    const onHide = () => flushSession();
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      flushSession();
+    };
+  }, [flushSession]);
+
   // ── Reset ──────────────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
+    flushSession();
+    sessionIdRef.current  = null;
+    sessionAggRef.current = { sum: 0, count: 0, peakRisk: 0, peakConf: 0, lastClass: "" };
+    lastFlushRef.current  = 0;
+
     resetSession();
     setHistory([]);
     setFrameCount(0);
     setCalibMode(false);
     setCalibCount(0);
     setCalibReady(false);
+    toastInfo("Session reset");
     logger.warn("App", "Session reset");
-  }, [resetSession]);
+  }, [resetSession, flushSession]);
+
+  // ── Command palette registration ───────────────────────────────────────────
+  const { register: registerCommand } = useCommands();
+  useEffect(() => {
+    const unsubs = [
+      registerCommand({
+        id: "nav.live", group: "Navigate", label: "Go to Live Analysis", shortcut: "⌘1",
+        run: () => { window.location.hash = "#/"; },
+      }),
+      registerCommand({
+        id: "nav.tracker", group: "Navigate", label: "Go to Progress Tracker", shortcut: "⌘2",
+        run: () => { window.location.hash = "#/tracker"; },
+      }),
+      registerCommand({
+        id: "nav.sentinel", group: "Navigate", label: "Open Sentinel (early-warning)",
+        run: () => { window.location.href = "/sentinel.html"; },
+      }),
+      registerCommand({
+        id: "nav.mirror", group: "Navigate", label: "Open AR Mirror",
+        run: () => { window.location.href = "/mirror.html"; },
+      }),
+      registerCommand({
+        id: "nav.game", group: "Navigate", label: "Open Face-Joypad",
+        run: () => { window.location.href = "/game.html"; },
+      }),
+      registerCommand({
+        id: "session.calibrate", group: "Session", label: "Calibrate baseline", shortcut: "C",
+        run: () => setCalibMode((v) => !v),
+      }),
+      registerCommand({
+        id: "session.reset", group: "Session", label: "Reset session", shortcut: "R",
+        run: handleReset,
+      }),
+      registerCommand({
+        id: "session.connect", group: "Session", label: "Reconnect WebSocket",
+        run: () => connect(),
+      }),
+      registerCommand({
+        id: "ui.restartOnboarding", group: "Interface", label: "Restart onboarding",
+        run: () => {
+          localStorage.removeItem("ns_onboarding_done");
+          toastInfo("Onboarding will run on next reload");
+        },
+      }),
+    ];
+    return () => unsubs.forEach((u) => u());
+  }, [registerCommand, handleReset, connect]);
 
   // ── Derived display values ─────────────────────────────────────────────────
   const r = lastResult;
@@ -211,7 +407,10 @@ export default function App() {
   }, [closeDialog, dismissTriage, openDialog, riskLevel, showTriage]);
 
   useEffect(() => {
-    if (camError) logger.error("Camera", "Init failed", { error: camError });
+    if (camError) {
+      toastError(`Camera: ${camError}`);
+      logger.error("Camera", "Init failed", { error: camError });
+    }
   }, [camError]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -226,13 +425,11 @@ export default function App() {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <header className="relative z-10 flex items-center justify-between px-5 py-3 bg-bg-surface border-b border-neu-border" role="banner">
 
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-[8px] flex items-center justify-center bg-gradient-to-br from-blue-700 to-sky-500 shadow-glow-cyan shrink-0" aria-hidden="true">
-            <Activity size={16} color="#bfdbfe" strokeWidth={2.5} />
-          </div>
+        <div className="flex items-center gap-3" data-tour="logo">
+          <AnimatedLogo />
           <div>
             <div className="text-[15px] font-extrabold tracking-wide text-slate-200 leading-tight">Neuro-Symmetry</div>
-            <div className="text-[9px] font-semibold tracking-[0.3em] text-accent-cyan uppercase">Facial Analysis Platform v2.0</div>
+            <div className="text-micro font-semibold tracking-cyber text-accent-cyan uppercase">Facial Analysis Platform v2.0</div>
           </div>
         </div>
 
@@ -270,8 +467,12 @@ export default function App() {
 
         <nav className="hidden md:flex items-center gap-1" aria-label="Tool navigation">
           {NAV_LINKS.map(({ href, label }) => (
-            <a key={href} href={href}
-               className="px-3 py-1 rounded-lg text-[10px] font-semibold tracking-wide text-slate-500 border border-transparent hover:text-accent-cyan hover:border-neu-border transition-all">
+            <a
+              key={href}
+              href={href}
+              data-tour={label === "Tracker" ? "tracker" : undefined}
+              className="px-3 py-1 rounded-lg text-[10px] font-semibold tracking-wide text-slate-500 border border-transparent hover:text-accent-cyan hover:border-neu-border transition-all"
+            >
               {label}
             </a>
           ))}
@@ -299,7 +500,7 @@ export default function App() {
 
         {/* Left — camera + overlays */}
         <div className="flex flex-col gap-3 shrink-0">
-          <Card>
+          <Card tone="elevated">
             <div
               className={`relative rounded-2xl overflow-hidden border-2 transition-all duration-500 risk-video-border ${videoRiskClass}`}
               style={{ width: WIDTH, height: HEIGHT }}
@@ -384,24 +585,40 @@ export default function App() {
 
         {/* Right — analysis panels */}
         <div className="flex flex-col gap-3 flex-1 min-w-0 min-h-0">
-          <Card>
-            <div className="flex items-center gap-4">
-              <SymmetryGauge score={lastGoodScore} riskLevel={riskLevel} />
-              <div className="flex-1">
-                <RiskIndicator riskLevel={riskLevel} alert={alert} />
-              </div>
+          <Card tone="elevated">
+            <div data-tour="gauge">
+              {wsStatus === "connecting" || (wsOk && lastResult === null) ? (
+                <SkeletonGauge />
+              ) : (
+                <div className="flex items-center gap-4">
+                  <SymmetryGauge score={lastGoodScore} riskLevel={riskLevel} />
+                  <div className="flex-1">
+                    <RiskIndicator riskLevel={riskLevel} alert={alert} />
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
           <Card>
             <SectionLabel>Symmetry Timeline — Last {MAX_HISTORY} Frames</SectionLabel>
-            <ScoreGraph history={history} trajectory={trajectory} />
+            {history.length < 3 ? (
+              <SkeletonGraph />
+            ) : (
+              <ScoreGraph history={history} trajectory={trajectory} />
+            )}
           </Card>
 
           <Card flex>
             <SectionLabel>Feature Contributions (XAI)</SectionLabel>
             <div className="overflow-y-auto pr-1">
-              <XAIBreakdown xai={xai} />
+              {wsOk && lastResult === null ? (
+                <SkeletonXAI />
+              ) : trackingQuality === "UNRELIABLE" || xai.length === 0 ? (
+                <EmptyState variant="no-face" />
+              ) : (
+                <XAIBreakdown xai={xai} />
+              )}
             </div>
           </Card>
         </div>
@@ -417,19 +634,23 @@ export default function App() {
           </button>
         )}
 
-        <button
-          onClick={() => setCalibMode((v) => !v)}
-          aria-label={calibMode ? "Cancel calibration" : "Start baseline calibration"}
-          aria-pressed={calibMode}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold tracking-wide border transition-all ${
-            calibMode
-              ? "bg-amber-900/30 border-amber-500/40 text-amber-400 hover:brightness-110"
-              : "bg-bg-panel border-neu-border text-slate-400 hover:border-neu-borderLight"
-          }`}
-        >
-          <Target size={13} aria-hidden="true" />
-          {calibMode ? `CALIBRATING… ${calibCount}/${MIN_CALIBRATION_FRAMES}` : calibReady ? "RE-CALIBRATE" : "CALIBRATE BASELINE"}
-        </button>
+        <div data-tour="calibrate">
+          <CalibrationRing count={calibCount} total={MIN_CALIBRATION_FRAMES} active={calibMode}>
+            <button
+              onClick={() => setCalibMode((v) => !v)}
+              aria-label={calibMode ? "Cancel calibration" : "Start baseline calibration"}
+              aria-pressed={calibMode}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold tracking-wide border transition-all ring-cyber ${
+                calibMode
+                  ? "bg-amber-900/30 border-amber-500/40 text-amber-400 hover:brightness-110"
+                  : "bg-bg-panel border-neu-border text-slate-400 hover:border-neu-borderLight"
+              }`}
+            >
+              <Target size={13} aria-hidden="true" />
+              {calibMode ? `CALIBRATING… ${calibCount}/${MIN_CALIBRATION_FRAMES}` : calibReady ? "RE-CALIBRATE" : "CALIBRATE BASELINE"}
+            </button>
+          </CalibrationRing>
+        </div>
 
         <button onClick={handleReset}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold tracking-wide bg-bg-panel border border-neu-border text-red-500 hover:border-red-500/40 hover:bg-red-900/15 transition-all"
