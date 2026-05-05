@@ -1105,14 +1105,10 @@
         <span class="eyebrow reveal">05 · Demo</span><span class="timing reveal">1 min</span>
         <h2 class="h2" data-split>The V2 system, live.</h2>
         <div class="live-row">
-          <!-- TODO: replace this placeholder with <img src="assets/v2-screenshot.png" alt="V2 frontend"> once the screenshot exists. -->
-          <div class="live-card reveal" aria-hidden="true" style="cursor: default; min-height: 240px; background: linear-gradient(135deg, rgba(34,211,238,0.10), rgba(0,229,180,0.06)); align-items: center; justify-content: center; text-align: center;">
-            <span class="live-tag">Frontend</span>
-            <h3 style="margin-top: 0.5rem;">SymmetryGauge · XAIBreakdown · HeatmapOverlay</h3>
-            <p>React + Vite frontend. Live score, 7-region attribution panel, canvas heatmap overlay, trajectory state badge. WebSocket stream to FastAPI backend on :8000.</p>
-            <p style="margin-top: 0.75rem; font-family: var(--mono); font-size: 0.75rem; color: var(--dim); letter-spacing: 0.08em;">[ screenshot placeholder · drop site/assets/v2-screenshot.png ]</p>
-          </div>
-          <a class="live-card reveal" href="http://localhost:3000/" target="_blank" rel="noopener">
+          <video class="live-card reveal" controls loop muted playsinline style="margin: 0; padding: 0; width: 100%; height: 100%; object-fit: cover;">
+            <source src="MINI DEMO.mp4" type="video/mp4">
+          </video>
+          <!-- <a class="live-card reveal" href="http://localhost:3000/" target="_blank" rel="noopener">
             <span class="live-tag">Run locally</span>
             <h3>One command, two services.</h3>
             <p><code>docker compose up</code> starts the FastAPI backend (ONNX inference, temporal engine, XAI) on <code>:8000</code> and the React frontend on <code>:3000</code>. WebSocket at <code>/ws/stream</code>. Personal z-score baseline calibrates over a 120-frame warm-up.</p>
@@ -1123,7 +1119,7 @@
           </a>
         </div>
       </div>
-      <aside class="notes">The V2 system is what you've been hearing about. React frontend, FastAPI backend, ONNX inference. You launch it with a single docker compose command — backend comes up on port 8000, frontend on 3000, WebSocket stream on /ws/stream. The frontend exposes everything the model produces: the live symmetry gauge, the XAI breakdown panel that aggregates the 50 features into seven facial regions, the canvas heatmap overlay on top of the camera feed, the risk-level badge, and the trajectory state. There's a personal z-score baseline that calibrates over the first 120 frames so the system normalizes to the individual user before scoring deviations. One honest note about the demo: subtle asymmetries are normal, everyone has them. The system is calibrated to flag degree and pattern that exceed personal baseline drift, not to detect every micro-asymmetry.</aside>
+      <aside class="notes">The V2 system is what you've been hearing about. React frontend, FastAPI backend, ONNX inference. You launch it with a single docker compose command — backend comes up on port 8000, frontend on 3000, WebSocket stream on /ws/stream. The frontend exposes everything the model produces: the live symmetry gauge, the XAI breakdown panel that aggregates the 50 features into seven facial regions, the canvas heatmap overlay on top of the camera feed, the risk-level badge, and the trajectory state. There's a personal z-score baseline that calibrates over the first 120 frames so the system normalizes to the individual user before scoring deviations. One honest note about the demo: subtle asymmetries are normal, everyone has them. The system is calibrated to flag degree and pattern that exceed personal baseline drift, not to detect every micro-asymmetry.</aside> -->
     </section>
 
     <!-- ===================== Slide 8 — Value + Future ===================== -->
