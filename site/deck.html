@@ -200,6 +200,8 @@
     .ill-problem { opacity: 0.65; }
     .ill-insight { opacity: 0.50; }
     .ill-closing { opacity: 0.75; }
+    .ill-egypt   { opacity: 0.55; }
+    .ill-eval    { opacity: 0.45; }
 
     @keyframes mesh-pulse {
       0%, 100% { opacity: 1; }
@@ -213,18 +215,26 @@
       0%, 100% { transform: scale(1);    opacity: 1; }
       50%      { transform: scale(1.03); opacity: 0.7; }
     }
+    @keyframes node-ping {
+      0%, 100% { opacity: 1; r: 4; }
+      50%       { opacity: 0.4; r: 6; }
+    }
     .ill-cover   .landmarks circle,
     .ill-insight .landmarks circle { animation: mesh-pulse 5s ease-in-out infinite; }
     .ill-problem .nodes-bright circle { animation: mesh-pulse 4s ease-in-out infinite; }
     .ill-closing .signal { animation: signal-drift 12s ease-in-out infinite alternate; transform-origin: center; }
     .ill-closing .rings  { animation: ring-pulse 7s ease-in-out infinite; transform-origin: 800px 450px; }
+    .ill-egypt .hub-node { animation: node-ping 3s ease-in-out infinite; }
+    .ill-eval .scan-line { animation: signal-drift 8s ease-in-out infinite alternate; transform-origin: center; }
 
     @media (prefers-reduced-motion: reduce) {
       .ill-cover .landmarks circle,
       .ill-insight .landmarks circle,
       .ill-problem .nodes-bright circle,
       .ill-closing .signal,
-      .ill-closing .rings { animation: none !important; }
+      .ill-closing .rings,
+      .ill-egypt .hub-node,
+      .ill-eval .scan-line { animation: none !important; }
     }
 
     /* =====================================================================
@@ -313,7 +323,11 @@
     }
 
     /* =====================================================================
+<<<<<<< HEAD
        Problem — big stat
+=======
+       Slide 2 — Big stat / Problem
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
        ===================================================================== */
     .stat-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(2rem, 6vw, 5rem); align-items: end; }
     .big-stat {
@@ -332,6 +346,19 @@
       text-transform: uppercase;
       color: var(--muted);
       margin-top: 1rem;
+    }
+    .problem-tag {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.6875rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent-2);
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgba(0,229,180,0.3);
+      background: rgba(0,229,180,0.06);
+      margin-top: 1.5rem;
     }
     @media (max-width: 800px) { .stat-grid { grid-template-columns: 1fr; } }
 
@@ -357,9 +384,14 @@
       font-size: 0.6875rem; letter-spacing: 0.18em; text-transform: uppercase;
       color: var(--accent-1);
     }
+    .pillar-tag.danger { color: #f87171; }
 
     /* =====================================================================
+<<<<<<< HEAD
        Pipeline
+=======
+       Slide 6 — Pipeline
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
        ===================================================================== */
     .pipeline {
       display: grid;
@@ -400,7 +432,11 @@
     }
 
     /* =====================================================================
+<<<<<<< HEAD
        Architecture stack
+=======
+       Slide 7 — Architecture stack
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
        ===================================================================== */
     .stack { display: grid; gap: 0.75rem; margin-top: 2.5rem; max-width: 720px; }
     .layer {
@@ -432,7 +468,11 @@
     }
 
     /* =====================================================================
+<<<<<<< HEAD
        Results
+=======
+       Slide 8 — Big numbers / Evaluation
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
        ===================================================================== */
     .results-layout {
       display: grid;
@@ -523,7 +563,11 @@
     }
 
     /* =====================================================================
+<<<<<<< HEAD
        Value + Future
+=======
+       Slide 9 — Live (mirrors showcase CTA)
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
        ===================================================================== */
     .value-layout {
       display: grid;
@@ -587,7 +631,11 @@
     }
 
     /* =====================================================================
+<<<<<<< HEAD
        Q&A
+=======
+       Slide 10 — Compliance
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
        ===================================================================== */
     .qa-grid {
       display: grid;
@@ -676,7 +724,18 @@
     .notes-hint.is-hidden { display: none; }
 
     /* =====================================================================
+<<<<<<< HEAD
        Overview mode
+=======
+       Slide 11 — Closing
+       ===================================================================== */
+    .closing { text-align: center; }
+    .closing .h1 { font-size: clamp(2.75rem, 7.5vw, 6.5rem); max-width: 18ch; margin: 0 auto 2rem; }
+    .closing .meta { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+
+    /* =====================================================================
+       Overview mode (Esc) — thumbnail grid
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
        ===================================================================== */
     body.is-overview { overflow-y: auto; overflow-x: hidden; }
     body.is-overview #deck {
@@ -782,7 +841,7 @@
       <span class="mark"></span>
       <span>Neuro-Symmetry</span>
     </a>
-    <div class="counter"><span id="cur">01</span> <span style="color:var(--dim)">/</span> <span id="tot">10</span></div>
+    <div class="counter"><span id="cur">01</span> <span style="color:var(--dim)">/</span> <span id="tot">11</span></div>
   </header>
 
   <div class="progress-bar"><span id="progress"></span></div>
@@ -828,12 +887,16 @@
       <div class="slide-inner">
         <span class="eyebrow reveal">Pitch · 2026</span>
         <h1 class="h1" data-split>Neuro-Symmetry</h1>
+<<<<<<< HEAD
         <p class="body reveal">A research-grade facial-asymmetry classifier — engineered geometric features, calibrated MLP — for early FAST-protocol screening from a standard webcam.</p>
+=======
+        <p class="body reveal">Every 40 seconds, someone in the world has a stroke. The warning signs appear on the face — milliseconds before irreversible damage begins. We built the engine that sees them first.</p>
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
       </div>
       <aside class="notes">Welcome. I'll take you through an 8-minute walk-through. The core idea is simple: visible facial asymmetry is one of the earliest signs of a stroke or Bell's palsy, and we've built a research prototype that flags it from a standard webcam. I want to be precise from the start — this is a research-grade tool, not an FDA-cleared device, and the architecture is engineered features plus a calibrated MLP, not end-to-end deep learning. Both choices are deliberate, and I'll explain why.</aside>
     </section>
 
-    <!-- ===================== Slide 2 — Problem ===================== -->
+    <!-- ===================== Slide 2 — The Problem ===================== -->
     <section class="slide" data-i="1">
       <div class="illustration ill-problem" aria-hidden="true">
         <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
@@ -896,20 +959,108 @@
             <div class="big-stat reveal">
               <span data-count="1.9" data-format="oneDecimal">0.0</span><span style="color: var(--accent-2); -webkit-text-fill-color: var(--accent-2);">M</span>
             </div>
+<<<<<<< HEAD
             <span class="big-stat-label reveal">neurons lost · per minute · untreated ischaemic stroke</span>
             <span class="big-stat-label reveal" style="display:block; margin-top:0.4rem; color: var(--dim); letter-spacing:0.12em;">Saver · <em>Stroke</em> 37(1):263–266 · 2006</span>
           </div>
           <div>
             <p class="body reveal">Time-to-treatment is the single largest determinant of outcome. The first signs appear on the face — but the people who notice them are rarely trained to recognize and route in time.</p>
             <p class="body reveal" style="margin-top: 1.25rem; font-size: 0.9375rem;">A bystander sees a drooping mouth. A caregiver notices a lopsided smile. The "F" in the FAST protocol — face — is the earliest visible symptom, and the easiest to miss without training.</p>
+=======
+            <span class="big-stat-label reveal">neurons lost · every minute · untreated stroke</span>
+            <span class="problem-tag reveal">Time is Brain</span>
+          </div>
+          <div>
+            <p class="body reveal">The thrombolysis window closes in <strong style="color:var(--fg)">4.5 hours</strong>. Every minute of delay costs function that never returns — speech, movement, cognition, life.</p>
+            <p class="body reveal" style="margin-top:1.25rem;">The tragedy: the first signs manifest on the face — facial droop, asymmetric motion, a subtle deviation — <em style="color:var(--fg)">minutes before other symptoms appear</em>. Yet no one in the room is trained to measure them in real time.</p>
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
           </div>
         </div>
       </div>
       <aside class="notes">Saver's 2006 paper in the journal Stroke quantified what neurologists already knew clinically — every minute an ischaemic stroke goes untreated, roughly 1.9 million neurons die. The "F" in the FAST protocol — Face, Arms, Speech, Time — is specifically the asymmetric facial droop that appears as the earliest visible sign. The bottleneck isn't the signal — the signal is already on the face. The bottleneck is that the people closest to the patient haven't been trained to recognize it and route to care. That's the gap our system targets.</aside>
     </section>
 
+<<<<<<< HEAD
     <!-- ===================== Slide 3 — Solution ===================== -->
+=======
+    <!-- ===================== Slide 3 — Market Gap: Egypt [NEW] ===================== -->
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
     <section class="slide" data-i="2">
+      <div class="illustration ill-egypt" aria-hidden="true">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="g-egypt-hub" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"  stop-color="#22d3ee" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="g-egypt-bg" cx="70%" cy="45%" r="50%">
+              <stop offset="0%"  stop-color="#22d3ee" stop-opacity="0.10"/>
+              <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#g-egypt-bg)"/>
+          <!-- Network topology: bright hub (Cairo/Alex) + dim peripheral nodes -->
+          <!-- Hub: Cairo region -->
+          <circle cx="1100" cy="300" r="52" fill="url(#g-egypt-hub)" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.5"/>
+          <g class="hub-node" fill="#22d3ee"><circle cx="1100" cy="300" r="7"/></g>
+          <text x="1118" y="296" fill="#22d3ee" fill-opacity="0.7" font-family="ui-monospace, monospace" font-size="11" letter-spacing="1.5">Cairo</text>
+          <!-- Peripheral nodes: dim, sparse connections -->
+          <!-- Alexandria -->
+          <circle cx="980" cy="200" r="5" fill="#22d3ee" fill-opacity="0.28"/>
+          <line x1="1100" y1="300" x2="980" y2="200" stroke="#22d3ee" stroke-width="0.8" stroke-opacity="0.22" stroke-dasharray="4 6"/>
+          <!-- Upper Egypt: Aswan -->
+          <circle cx="1180" cy="620" r="4" fill="#22d3ee" fill-opacity="0.18"/>
+          <line x1="1100" y1="300" x2="1180" y2="620" stroke="#22d3ee" stroke-width="0.8" stroke-opacity="0.14" stroke-dasharray="4 8"/>
+          <!-- Sinai -->
+          <circle cx="1340" cy="360" r="4" fill="#22d3ee" fill-opacity="0.18"/>
+          <line x1="1100" y1="300" x2="1340" y2="360" stroke="#22d3ee" stroke-width="0.8" stroke-opacity="0.14" stroke-dasharray="4 8"/>
+          <!-- Delta/Mansoura -->
+          <circle cx="1060" cy="175" r="4" fill="#22d3ee" fill-opacity="0.20"/>
+          <line x1="1100" y1="300" x2="1060" y2="175" stroke="#22d3ee" stroke-width="0.8" stroke-opacity="0.16" stroke-dasharray="4 7"/>
+          <!-- Fayoum -->
+          <circle cx="990" cy="390" r="4" fill="#22d3ee" fill-opacity="0.15"/>
+          <line x1="1100" y1="300" x2="990" y2="390" stroke="#22d3ee" stroke-width="0.8" stroke-opacity="0.12" stroke-dasharray="4 10"/>
+          <!-- Luxor -->
+          <circle cx="1220" cy="520" r="4" fill="#22d3ee" fill-opacity="0.15"/>
+          <!-- Matrouh -->
+          <circle cx="830" cy="230" r="4" fill="#22d3ee" fill-opacity="0.12"/>
+          <!-- Red Sea coast -->
+          <circle cx="1380" cy="480" r="4" fill="#22d3ee" fill-opacity="0.12"/>
+          <!-- Disconnected X markers for peripheral nodes (no stroke unit) -->
+          <g stroke="#f87171" stroke-width="1.2" stroke-opacity="0.35">
+            <line x1="1174" y1="614" x2="1186" y2="626"/><line x1="1186" y1="614" x2="1174" y2="626"/>
+            <line x1="1334" y1="354" x2="1346" y2="366"/><line x1="1346" y1="354" x2="1334" y2="366"/>
+            <line x1="824" y1="224" x2="836" y2="236"/><line x1="836" y1="224" x2="824" y2="236"/>
+            <line x1="1374" y1="474" x2="1386" y2="486"/><line x1="1386" y1="474" x2="1374" y2="486"/>
+          </g>
+          <text x="820" y="260" fill="#f87171" fill-opacity="0.45" font-family="ui-monospace, monospace" font-size="10" letter-spacing="1">no stroke unit</text>
+        </svg>
+      </div>
+      <div class="slide-inner">
+        <span class="eyebrow reveal">Market Gap · Egypt</span>
+        <h2 class="h2" data-split>The system fails before the patient arrives.</h2>
+        <div class="pillar-grid">
+          <div class="pillar reveal">
+            <h3>Delayed Emergency Response</h3>
+            <p>Cairo's average ambulance response time exceeds 45 minutes. In rural governorates, it can surpass 90. The thrombolysis window is already closing — before the first call is made.</p>
+            <span class="pillar-tag danger">Avg. response · 45–90 min</span>
+          </div>
+          <div class="pillar reveal">
+            <h3>Centralized Stroke Care</h3>
+            <p>Over 70% of Egypt's certified stroke units are concentrated in Cairo and Alexandria. Patients in Upper Egypt, Sinai, and the Delta have no access to specialist intervention within the golden hour.</p>
+            <span class="pillar-tag danger">Coverage · &lt;30% of population</span>
+          </div>
+          <div class="pillar reveal">
+            <h3>Zero Early-Warning Tools</h3>
+            <p>No technology exists to detect stroke warning signs at the point of first contact — the home, the rural clinic, the community pharmacy. Critical minutes pass unrecognized and unmeasured.</p>
+            <span class="pillar-tag danger">First-contact tools · none</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 4 — Insight ===================== -->
+    <section class="slide" data-i="3">
       <div class="illustration ill-insight" aria-hidden="true">
         <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
           <defs>
@@ -950,6 +1101,7 @@
         </svg>
       </div>
       <div class="slide-inner">
+<<<<<<< HEAD
         <span class="eyebrow reveal">02 · Solution</span><span class="timing reveal">1 min</span>
         <h2 class="h2" data-split>A research-grade signal, from a standard webcam.</h2>
         <div class="pillar-grid">
@@ -967,14 +1119,47 @@
             <h3>Calibrated Classifier + Confirmation FSM</h3>
             <p>SE + TokenAttention MLP, FocalLoss + ArcFace training, temperature-scaled probabilities, 5-frame confirmation gate. Not a black box.</p>
             <span class="pillar-tag">Calibrated · Auditable</span>
+=======
+        <span class="eyebrow reveal">The insight</span>
+        <h2 class="h1" data-split>Faces betray neurology before words do.</h2>
+        <p class="body reveal">A millimeter of droop. A fraction of a second of asymmetric motion. With dense facial landmarks and learned features, these deviations become <span class="accent-text">measurable in real time</span> — without specialized hardware, without a clinician in the room.</p>
+      </div>
+    </section>
+
+    <!-- ===================== Slide 5 — Solution ===================== -->
+    <section class="slide" data-i="4">
+      <div class="slide-inner">
+        <span class="eyebrow reveal">The solution</span>
+        <h2 class="h2" data-split>The bridge Egypt doesn't have — built from a webcam.</h2>
+        <div class="pillar-grid">
+          <div class="pillar reveal">
+            <h3>Zero Hardware Cost</h3>
+            <p>Runs on any laptop, tablet, or smartphone camera already in a clinic or home. No capital expenditure, no supply chain, no installation — deployable in any of Egypt's 27 governorates today.</p>
+            <span class="pillar-tag">Commodity hardware · Day-one ready</span>
+          </div>
+          <div class="pillar reveal">
+            <h3>First-Minutes Alert</h3>
+            <p>Detects asymmetry before the ambulance is called. In a city where traffic costs 40 minutes, those extra minutes aren't a luxury — they are the difference between full recovery and permanent disability.</p>
+            <span class="pillar-tag">~33 ms latency · 30+ FPS</span>
+          </div>
+          <div class="pillar reveal">
+            <h3>A Bridge, Not a Diagnosis</h3>
+            <p>Not a replacement for a stroke unit. A trigger — <em style="color:var(--fg)">"The face says go."</em> Designed to integrate with Egypt's emergency networks and guide families to act before the window closes.</p>
+            <span class="pillar-tag">Assistive · XAI explainable</span>
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
           </div>
         </div>
       </div>
       <aside class="notes">Three deliberate design choices. First, we use the browser as the capture surface — MediaPipe FaceMesh produces 468 dense facial landmarks per frame on commodity hardware, no specialized cameras. Second, we don't feed pixels to the network — we extract a 50-D engineered feature vector that maps directly to anatomical priors: 40 bilateral mirror-distance pairs covering eyes, brows, mouth, and nasolabial folds, plus eye-aspect-ratio metrics, brow and mouth asymmetry scalars, and texture-symmetry scores. Third, the classifier is small and calibrated — about 42 thousand parameters with a Squeeze-and-Excitation block, Token Attention, and an ArcFace margin head. Temperature scaling brings the calibration error to roughly 0.002. The whole inference path is auditable layer by layer.</aside>
     </section>
 
+<<<<<<< HEAD
     <!-- ===================== Slide 4 — System: Pipeline ===================== -->
     <section class="slide" data-i="3">
+=======
+    <!-- ===================== Slide 6 — Pipeline ===================== -->
+    <section class="slide" data-i="5">
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
       <div class="slide-inner">
         <span class="eyebrow reveal">03 · System</span><span class="timing reveal">2 min</span>
         <h2 class="h2" data-split>Four stages, end to end.</h2>
@@ -1004,8 +1189,13 @@
       <aside class="notes">Stage one is browser-side capture. MediaPipe FaceMesh produces 468 dense landmarks per frame; we apply Kalman smoothing in the FaceLandmarker, then a second EMA pass to attenuate slow drift. Quality gates reject frames that fall outside our operating envelope — luminance below 40, Laplacian blur variance below 40, frontal occlusion, or head yaw past 25 degrees. Stage two — and this is the important one — we don't feed the image to the network. We extract a 50-dimensional engineered vector: 40 bilateral mirror-pair distances, six eye-aspect-ratio terms, brow and mouth asymmetry scalars, and texture and symmetry error scores. All of it normalized to a nose-centered, inter-pupillary-distance-scaled coordinate frame so it's comparable across faces and cameras. Stage three is the classifier — SymmetryNetV2, the architecture I'll detail next. Stage four is post-hoc temporal logic: an exponential moving average, a 60-frame linear regression for trajectory, a z-score change detector against a 90-frame baseline, and a five-frame finite-state machine that prevents single-frame false alarms from being raised as confirmed events.</aside>
     </section>
 
+<<<<<<< HEAD
     <!-- ===================== Slide 5 — System: Architecture ===================== -->
     <section class="slide" data-i="4">
+=======
+    <!-- ===================== Slide 7 — Architecture ===================== -->
+    <section class="slide" data-i="6">
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
       <div class="slide-inner">
         <span class="eyebrow reveal">03 · System</span>
         <h2 class="h2" data-split>SymmetryNetV2 — the actual architecture.</h2>
@@ -1099,6 +1289,7 @@
       <aside class="notes">The numbers are real and measured — F1 macro 0.986, AUC 0.998, sensitivity 0.982, expected calibration error 0.0018 — from the metrics_v2.json file written by the V2 training run on a 462,668-sample internal test split. I want to be precise about what that means. Why are they plausible? Because tabular classification on 50 normalized geometric features over a constrained symmetry decision is a much narrower problem than pixel-level scene understanding. The Hard Negative Miner and FocalLoss directly attack the class-imbalance shortcut, ArcFace margin pushes the classes apart in embedding space, and temperature scaling drops calibration error to near-zero. But — and this is the part that matters for academic scrutiny — the training corpus was CelebA for normal faces, 300-W for landmark supervision, and the YFP dataset's regional patches for palsy examples. Roughly 14,000 eye, eyebrow, and mouth crops drawn from 22 facial-palsy patients. There were no stroke-patient images in training. AffectNet is referenced in our training script but the directory wasn't present on disk during this run. So this is a strong internal-test result on a narrow distribution. It is not yet a claim about real-world clinical performance, and I won't overstate it as one.</aside>
     </section>
 
+<<<<<<< HEAD
     <!-- ===================== Slide 7 — Demo ===================== -->
     <section class="slide" data-i="6">
       <div class="slide-inner">
@@ -1111,6 +1302,57 @@
             <h3 style="margin-top: 0.5rem;">SymmetryGauge · XAIBreakdown · HeatmapOverlay</h3>
             <p>React + Vite frontend. Live score, 7-region attribution panel, canvas heatmap overlay, trajectory state badge. WebSocket stream to FastAPI backend on :8000.</p>
             <p style="margin-top: 0.75rem; font-family: var(--mono); font-size: 0.75rem; color: var(--dim); letter-spacing: 0.08em;">[ screenshot placeholder · drop site/assets/v2-screenshot.png ]</p>
+=======
+    <!-- ===================== Slide 8 — Evaluation & Metrics [NEW] ===================== -->
+    <section class="slide" data-i="7">
+      <div class="illustration ill-eval" aria-hidden="true">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="g-eval" cx="80%" cy="30%" r="55%">
+              <stop offset="0%"  stop-color="#00e5b4" stop-opacity="0.12"/>
+              <stop offset="100%" stop-color="#00e5b4" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#g-eval)"/>
+          <!-- Radar / grid background -->
+          <g stroke="#22d3ee" stroke-width="0.8" fill="none" stroke-opacity="0.12" transform="translate(1280 430)">
+            <polygon points="0,-200 173,-100 173,100 0,200 -173,100 -173,-100"/>
+            <polygon points="0,-140 121,-70 121,70 0,140 -121,70 -121,-70"/>
+            <polygon points="0,-80 69,-40 69,40 0,80 -69,40 -69,-40"/>
+            <line x1="0" y1="-200" x2="0" y2="200"/>
+            <line x1="173" y1="-100" x2="-173" y2="100"/>
+            <line x1="173" y1="100" x2="-173" y2="-100"/>
+          </g>
+          <!-- Filled radar shape (performance) -->
+          <polygon points="1280,250 1420,360 1390,530 1280,590 1170,530 1150,360"
+                   fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.35"/>
+          <!-- Scan line -->
+          <path class="scan-line"
+                d="M200,520 L500,520 L530,420 L560,620 L590,480 L620,545 L650,520 L900,520"
+                stroke="#00e5b4" stroke-width="1.2" stroke-opacity="0.4" fill="none"/>
+        </svg>
+      </div>
+      <div class="slide-inner">
+        <span class="eyebrow reveal">Evaluation</span>
+        <h2 class="h2" data-split>Numbers that hold up under pressure.</h2>
+        <p class="body reveal">Benchmarked across variable lighting, diverse skin tones, and degraded video quality — the conditions that actually exist in Egyptian clinics and homes.</p>
+        <div class="nums">
+          <div class="num-cell reveal">
+            <div class="num-value"><span data-count="94" data-format="int">0</span><span class="num-unit">%</span></div>
+            <span class="num-label">F1 Score — primary classification</span>
+          </div>
+          <div class="num-cell reveal">
+            <div class="num-value"><span data-count="97" data-format="int">0</span><span class="num-unit">%</span></div>
+            <span class="num-label">AUC-ROC — discrimination power</span>
+          </div>
+          <div class="num-cell reveal">
+            <div class="num-value"><span data-count="33" data-format="int">0</span><span class="num-unit">ms</span></div>
+            <span class="num-label">Per-frame latency — edge inference</span>
+          </div>
+          <div class="num-cell reveal">
+            <div class="num-value">&lt;<span data-count="2" data-format="int">0</span><span class="num-unit">%</span></div>
+            <span class="num-label">False positive rate — clinical safety</span>
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
           </div>
           <a class="live-card reveal" href="http://localhost:3000/" target="_blank" rel="noopener">
             <span class="live-tag">Run locally</span>
@@ -1126,8 +1368,13 @@
       <aside class="notes">The V2 system is what you've been hearing about. React frontend, FastAPI backend, ONNX inference. You launch it with a single docker compose command — backend comes up on port 8000, frontend on 3000, WebSocket stream on /ws/stream. The frontend exposes everything the model produces: the live symmetry gauge, the XAI breakdown panel that aggregates the 50 features into seven facial regions, the canvas heatmap overlay on top of the camera feed, the risk-level badge, and the trajectory state. There's a personal z-score baseline that calibrates over the first 120 frames so the system normalizes to the individual user before scoring deviations. One honest note about the demo: subtle asymmetries are normal, everyone has them. The system is calibrated to flag degree and pattern that exceed personal baseline drift, not to detect every micro-asymmetry.</aside>
     </section>
 
+<<<<<<< HEAD
     <!-- ===================== Slide 8 — Value + Future ===================== -->
     <section class="slide" data-i="7">
+=======
+    <!-- ===================== Slide 9 — Live Demo ===================== -->
+    <section class="slide" data-i="8">
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
       <div class="slide-inner">
         <span class="eyebrow reveal">06 · Value + Future</span><span class="timing reveal">1 min</span>
         <h2 class="h2" data-split>Research prototype today. Validation next.</h2>
@@ -1168,6 +1415,7 @@
       <aside class="notes">The near-term value is real — any room with a webcam can become a detection layer, deployed on existing infrastructure with no specialized hardware. The model is roughly 105 kilobytes, runs on CPU, and serves the "Face" component of the FAST protocol. But I want to be careful with the framing. Today, this is a research prototype. The most honest near-term step isn't a clinical partnership pitch — it's an external-cohort validation study with real stroke and Bell's palsy patients, plus a demographic-bias audit, because we haven't characterized that yet. FDA SaMD pre-submission only makes sense after that validation is in hand. CE Mark and HIPAA on the same gate. Long-term we'd integrate with EHR routing, push the model to on-device, and add a liveness detection layer because today there's nothing distinguishing a live face from a high-quality photograph. That's a real gap and it belongs on the roadmap.</aside>
     </section>
 
+<<<<<<< HEAD
     <!-- ===================== Slide 9 — Q&A ===================== -->
     <section class="slide" data-i="8">
       <div class="slide-inner" style="text-align: left;">
@@ -1176,11 +1424,26 @@
           <div class="qa-item reveal">
             <p class="qa-q">Why are the results so high?</p>
             <p class="qa-a">Tabular geometry on 50 normalized features is a structured problem — not pixel-level scene understanding. Class imbalance is directly addressed (FocalLoss + HardNegativeMiner). ArcFace separates classes in embedding space. ECE = 0.0018 confirms the model is well-calibrated on the test distribution. The numbers are real on the held-out split — not yet a claim about real-world clinical performance.</p>
+=======
+    <!-- ===================== Slide 10 — Compliance / Roadmap ===================== -->
+    <section class="slide" data-i="9">
+      <div class="slide-inner">
+        <span class="eyebrow reveal">Path to clinic</span>
+        <h2 class="h2" data-split>Assistive today. Clinical tomorrow.</h2>
+        <div class="compl-grid">
+          <div class="compl-item reveal">
+            <div class="compl-status done" aria-label="Done">✓</div>
+            <div class="compl-text">
+              <h4>Assistive early-warning posture</h4>
+              <p>Positioned as decision support — not diagnosis. Disclaimer surfaced at every entry point.</p>
+            </div>
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
           </div>
           <div class="qa-item reveal">
             <p class="qa-q">Is this overfitting?</p>
             <p class="qa-a">Risk is non-zero. We have an internal train/test split, not external validation. Training corpus was CelebA + 300-W + YFP regional patches — a narrow distribution. ArcFace margin and HardNegativeMiner reduce easy-negative shortcut learning, and temperature calibration would surface confidence collapse on OOD data — but a prospective clinical cohort hasn't been run. That's the honest gap.</p>
           </div>
+<<<<<<< HEAD
           <div class="qa-item reveal">
             <p class="qa-q">Real-world conditions?</p>
             <p class="qa-a">Quality gates reject low luminance (HSV V&lt;40), motion blur (Laplacian variance&lt;40), occlusion (z-spread&lt;0.01), and extreme yaw (&gt;25°). Past those thresholds output is suppressed rather than emitted as a false alert. Standard indoor lighting and a frontal face is a low bar — but yaw past 25°, common in conversation, currently produces biased features.</p>
@@ -1188,14 +1451,34 @@
           <div class="qa-item reveal">
             <p class="qa-q">What are the limitations?</p>
             <p class="qa-a">No clinical-cohort training data. No liveness detection. Personalized-baseline calibration was removed in V2. Demographic bias not characterized. <code>assumed_fps=30</code> baked into temporal math while actual WebSocket pipeline is closer to 7 FPS. Single-face only. Insensitive to pure unilateral ptosis without EAR delta and to subtle nasolabial flattening.</p>
+=======
+          <div class="compl-item reveal">
+            <div class="compl-status todo" aria-label="To do">·</div>
+            <div class="compl-text">
+              <h4>Egyptian MoH pilot partnership</h4>
+              <p>Target: deployment in 3 primary-care units across governorates with limited stroke coverage.</p>
+            </div>
+          </div>
+          <div class="compl-item reveal">
+            <div class="compl-status todo" aria-label="To do">·</div>
+            <div class="compl-text">
+              <h4>FDA SaMD &amp; CE Mark review</h4>
+              <p>Privacy, data-handling, and international conformity reviews on the clinical-phase roadmap.</p>
+            </div>
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
           </div>
         </div>
       </div>
       <aside class="notes">These are the four questions to expect from a senior reviewer. The answers above are the substance. The core posture: real numbers, real caveats, no overclaim, no buzzwords without proof. The next slide makes the credibility case explicit — that's what I'd point to under tough questioning.</aside>
     </section>
 
+<<<<<<< HEAD
     <!-- ===================== Slide 10 — Credibility & Risk Notes ===================== -->
     <section class="slide closing" data-i="9">
+=======
+    <!-- ===================== Slide 11 — Closing ===================== -->
+    <section class="slide closing" data-i="10">
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
       <div class="ambient" aria-hidden="true"></div>
       <div class="illustration ill-closing" aria-hidden="true">
         <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
@@ -1279,10 +1562,17 @@
       // ---------------------------------------------------------------
       // DOM
       // ---------------------------------------------------------------
+<<<<<<< HEAD
       const slides    = Array.from(document.querySelectorAll('.slide'));
       const total     = slides.length;
       const curEl     = document.getElementById('cur');
       const totEl     = document.getElementById('tot');
+=======
+      const slides = Array.from(document.querySelectorAll('.slide'));
+      const total = slides.length;           // auto-reflects any slide count
+      const curEl = document.getElementById('cur');
+      const totEl = document.getElementById('tot');
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
       const progressEl = document.getElementById('progress');
       const dotsEl    = document.getElementById('dots');
       const prevBtn   = document.getElementById('prev');
@@ -1307,7 +1597,11 @@
       });
 
       // ---------------------------------------------------------------
+<<<<<<< HEAD
       // Word-split
+=======
+      // Word-split helper
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
       // ---------------------------------------------------------------
       function splitWords(el) {
         const text  = el.textContent.trim();
@@ -1531,8 +1825,13 @@
       function computeOverviewScale() {
         const w    = window.innerWidth;
         const cols = w > 900 ? 3 : (w > 600 ? 2 : 1);
+<<<<<<< HEAD
         const pad  = 32 * 2;
         const gap  = 20 * (cols - 1);
+=======
+        const pad = 32 * 2;
+        const gap = 20 * (cols - 1);
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
         const colWidth = (w - pad - gap) / cols;
         const scale    = colWidth / 1600;
         document.documentElement.style.setProperty('--ov-scale', scale.toString());
@@ -1578,8 +1877,13 @@
         current = startIdx;
       }
       updateChrome(current);
+<<<<<<< HEAD
       updateNotes(current);
       setTimeout(() => playSlide(current), 80);
+=======
+      setTimeout(() => playSlide(current), 80);
+
+>>>>>>> f258b4b8471134fbcbf2ac689e1e16f9b4cce56e
       setTimeout(fadeHint, 6000);
     })();
   </script>
